@@ -1,3 +1,7 @@
-[gd_scene format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=2 format=3 uid="uid://bwlp1654240cs"]
+
+[ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
 
 [node name="Node3D" type="Node3D"]
+
+[node name="Player" parent="." instance=ExtResource("1_6m6ci")]

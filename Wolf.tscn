@@ -1,30 +1,68 @@
-[gd_scene load_steps=5 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=8 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
 [ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://player.gd" id="2_55onw"]
 
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_55onw"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_x42b1"]
+subdivide_width = 1
+subdivide_height = 1
+subdivide_depth = 1
+
 [sub_resource type="BoxMesh" id="BoxMesh_55onw"]
 size = Vector3(20, 0.5, 20)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_55onw"]
+vertex_color_is_srgb = true
 
 [sub_resource type="BoxMesh" id="BoxMesh_en2fo"]
 size = Vector3(1, 2, 1)
 
 [node name="Node3D" type="Node3D"]
+physics_interpolation_mode = 1
 
 [node name="Player" parent="." instance=ExtResource("1_6m6ci")]
 script = ExtResource("2_55onw")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Player"]
+collision_layer = 3
+collision_mask = 3
+physics_material_override = SubResource("PhysicsMaterial_55onw")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player/StaticBody3D"]
+physics_interpolation_mode = 1
+mesh = SubResource("BoxMesh_x42b1")
+
+[node name="CollisionPolygon3D" type="CollisionPolygon3D" parent="Player/StaticBody3D"]
+physics_interpolation_mode = 1
+polygon = PackedVector2Array(0.486145, 0.500383, -0.509438, 0.490012, -0.499067, -0.484829, 0.49133, -0.484829)
 
 [node name="Camera3D" type="Camera3D" parent="Player"]
 current = true
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+physics_interpolation_mode = 1
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+layers = 3
 mesh = SubResource("BoxMesh_55onw")
+surface_material_override/0 = SubResource("StandardMaterial3D_55onw")
 
 [node name="MeshInstance3D2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, 0)
+physics_interpolation_mode = 1
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.229996, 0)
+layers = 3
 mesh = SubResource("BoxMesh_en2fo")
 
 [node name="MeshInstance3D3" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, 0)
+physics_interpolation_mode = 1
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.306736, 0)
 mesh = SubResource("BoxMesh_en2fo")
+
+[node name="SpotLight3D" type="SpotLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986486, 0)
+light_energy = 13.563
+light_indirect_energy = 13.068
+light_volumetric_fog_energy = 12.358
+light_size = 0.484
+light_specular = 4.169

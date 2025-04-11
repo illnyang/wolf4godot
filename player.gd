@@ -14,7 +14,7 @@ func _physics_process(delta):
 	movement = movement.normalized() * SPEED * delta
 	translate(movement)
 
-	if Input.is_action_pressed("turn_left"):
+	if Input.is_action_pressed("turn_right"):
 		rotate_y(-TURN_SPEED * delta)
-	elif Input.is_action_pressed("turn_right"):
+	elif Input.is_action_pressed("turn_left"):
 		rotate_y(TURN_SPEED * delta)

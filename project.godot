@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="WolfGodot"
+run/main_scene="uid://bwlp1654240cs"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
 

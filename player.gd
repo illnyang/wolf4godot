@@ -7,11 +7,10 @@ func _physics_process(delta):
 	var movement := Vector3.ZERO
 
 	if Input.is_action_pressed("move_forward"):
-		movement -= transform.basis.z
+		movement += $Camera3D.global_basis * Vector3.FORWARD * SPEED * delta;
 	if Input.is_action_pressed("move_backward"):
-		movement += transform.basis.z
+		movement -= $Camera3D.global_basis * Vector3.FORWARD * SPEED * delta;
 
-	movement = movement.normalized() * SPEED * delta
 	translate(movement)
 
 	if Input.is_action_pressed("turn_right"):

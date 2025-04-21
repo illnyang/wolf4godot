@@ -1,11 +1,9 @@
-[gd_scene load_steps=9 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=8 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
 [ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://player.gd" id="2_55onw"]
 [ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://map_loader.gd" id="3_en2fo"]
 [ext_resource type="PackedScene" uid="uid://d33bweulcnyk4" path="res://maps/Wall.tscn" id="4_x42b1"]
-
-[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_55onw"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_x42b1"]
 subdivide_width = 1
@@ -24,16 +22,15 @@ physics_interpolation_mode = 1
 [node name="Player" parent="." instance=ExtResource("1_6m6ci")]
 script = ExtResource("2_55onw")
 
-[node name="StaticBody3D" type="StaticBody3D" parent="Player"]
+[node name="CharacterBody3D" type="CharacterBody3D" parent="Player"]
 collision_layer = 3
 collision_mask = 3
-physics_material_override = SubResource("PhysicsMaterial_55onw")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Player/StaticBody3D"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player/CharacterBody3D"]
 physics_interpolation_mode = 1
 mesh = SubResource("BoxMesh_x42b1")
 
-[node name="CollisionPolygon3D" type="CollisionPolygon3D" parent="Player/StaticBody3D"]
+[node name="CollisionPolygon3D" type="CollisionPolygon3D" parent="Player/CharacterBody3D"]
 physics_interpolation_mode = 1
 polygon = PackedVector2Array(0.486145, 0.500383, -0.509438, 0.490012, -0.499067, -0.484829, 0.49133, -0.484829)
 

@@ -9,9 +9,9 @@ func _physics_process(delta):
 
 	# Moving forward and backward based on camera orientation
 	if Input.is_action_pressed("move_forward"):
-		movement += $Camera3D.global_transform.basis.z * SPEED * delta
-	if Input.is_action_pressed("move_backward"):
 		movement -= $Camera3D.global_transform.basis.z * SPEED * delta
+	if Input.is_action_pressed("move_backward"):
+		movement += $Camera3D.global_transform.basis.z * SPEED * delta
 
 	# Update velocity
 	velocity = movement

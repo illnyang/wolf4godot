@@ -91,7 +91,7 @@ func _apply_texture(node: Node3D, id: int) -> void:
 		mesh.material_override = _mat_cache[id]
 		return
 
-	var tex_path := "%swall%02d.png" % [texture_folder, id]
+	var tex_path := "%swall%d.png" % [texture_folder, id]
 	if not ResourceLoader.exists(tex_path):
 		push_warning("Texture file missing: " + tex_path)
 		return

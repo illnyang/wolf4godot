@@ -101,6 +101,7 @@ func _apply_texture(node: Node3D, id: int) -> void:
 	mat.shading_mode   = StandardMaterial3D.SHADING_MODE_UNSHADED
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	mat.albedo_texture = tex
+	mat.uv1_scale = Vector3(3, 2, 2)
 
 	_mat_cache[id] = mat
 	mesh.material_override = mat

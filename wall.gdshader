@@ -2,14 +2,12 @@
 shader_type spatial;
 render_mode unshaded;
 
-uniform sampler2D tex_front : filter_nearest;
-uniform sampler2D tex_back : filter_nearest;
-uniform sampler2D tex_left : filter_nearest;   // shaded
-uniform sampler2D tex_right : filter_nearest;  // shaded
-uniform sampler2D tex_top : filter_nearest;    // wasteful
-uniform sampler2D tex_bottom : filter_nearest; // wasteful
-
-uniform sampler2D tex_shaded : filter_nearest;
+uniform sampler2D tex_front : filter_nearest_mipmap_anisotropic;
+uniform sampler2D tex_back : filter_nearest_mipmap_anisotropic;
+uniform sampler2D tex_left : filter_nearest_mipmap_anisotropic;   // shaded
+uniform sampler2D tex_right : filter_nearest_mipmap_anisotropic;  // shaded
+uniform sampler2D tex_top : filter_nearest_mipmap_anisotropic;    // wasteful
+uniform sampler2D tex_bottom : filter_linear_mipmap_anisotropic; // wasteful
 
 void fragment() {
 	// https://docs.godotengine.org/en/stable/classes/class_boxmesh.html

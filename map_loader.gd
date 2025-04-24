@@ -55,7 +55,7 @@ func _spawn_walls(grid: Array) -> void:
 			var id := int(grid[y][x])
 
 			# ------  regular walls 0‑63  ----------------------------
-			if id >= 0 and id <= 63:
+			if id > 0 and id <= 63:
 				var wall := wall_scene.instantiate()
 				wall.position = Vector3(x * tile_size, 0, y * tile_size)
 				_apply_texture(wall, id)

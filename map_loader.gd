@@ -7,7 +7,7 @@ extends Node3D
 ##  • 90‑101 doors          (optional – see comments below)
 
 @export var wall_scene      : PackedScene            # your current wall scene
-@export var json_path       : String = "res://maps/map_00_Wolf1 Map1.json"
+@export var json_path       : String = "res://assets/maps/map_00_Wolf1 Map1.json"
 @export var tile_size       : float  = 1.0           # 1 Godot unit == 1 tile
 @export var texture_folder  : String = "res://assets/walls/"
 
@@ -67,6 +67,9 @@ func _spawn_walls(grid: Array) -> void:
 
 # ------------------------------------------------------------
 #  helper: recursively find the first MeshInstance3D in a node
+#  TODO: this is neither idiomatic GDScript nor optimal
+#  https://www.reddit.com/r/godot/comments/18hgna7/best_way_to_reference_a_node/
+#  https://www.reddit.com/r/godot/comments/13pm5o5/instantiating_a_scene_with_constructor_parameters/
 # ------------------------------------------------------------
 func _find_mesh(n: Node) -> MeshInstance3D:
 	if n is MeshInstance3D:

@@ -3,7 +3,7 @@
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
 [ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://player.gd" id="2_55onw"]
 [ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://map_loader.gd" id="3_en2fo"]
-[ext_resource type="PackedScene" uid="uid://d33bweulcnyk4" path="res://maps/Wall.tscn" id="4_x42b1"]
+[ext_resource type="PackedScene" uid="uid://d33bweulcnyk4" path="res://Wall.tscn" id="4_x42b1"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_x42b1"]
 subdivide_width = 1

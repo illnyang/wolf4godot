@@ -8,19 +8,24 @@ extends Node3D
 @export var tile_size       : float  = 1.0           # 1 Godot unit == 1 tile
 @export var texture_folder  : String = "res://assets/walls/"
 
+
+# -------------------------------------------------------------------
+# Layer 1 (Walls/Floors) ID helpers
+# -------------------------------------------------------------------
 const door_side_id = 51
 
-func _tile_is_wall(id: int) -> bool:
+func _l1_is_wall(id: int) -> bool:
 	return id >= 1 and id <= 53
 
-func _tile_is_door(id: int) -> bool:
+func _l1_is_door(id: int) -> bool:
 	return id >= 90 and id <= 95
 
-func _tile_is_elevator_door(id: int) -> bool:
+func _l1_is_elevator_door(id: int) -> bool:
 	return id == 100 or id == 101
 
-func _tile_is_floor(id: int) -> bool:
+func _l1_is_floor(id: int) -> bool:
 	return id >= 106 and id <= 143
+
 
 # -------------------------------------------------------------------
 # Cached materials - each for every combination of textures on 4 faces
@@ -68,7 +73,7 @@ func _spawn_walls(grid: Array) -> void:
 		_walls[y].resize(grid[y].size())
 		for x in range(grid[y].size()):
 			var id := int(grid[y][x])
-			if _tile_is_wall(id):
+			if _l1_is_wall(id):
 				var wall := wall_scene.instantiate()
 				wall.position = Vector3(x * tile_size, 0, y * tile_size)
 
@@ -80,12 +85,12 @@ func _spawn_walls(grid: Array) -> void:
 
 	# Apply side door texture to walls (hence the second pass) which are adjacent to doors
 	# TODO: Check for invalid door placement at grid boundaries
-	# TODO: Set side textures for walls adjacent to elevator doors
 	for y in range(grid.size()):
 		for x in range(grid[y].size()):
 			var id := int(grid[y][x])
 
-			if _tile_is_door(id):
+			var elevator: bool = _l1_is_elevator_door(id)
+			if _l1_is_door(id) or elevator:
 				# We assume EW/NS ids alternate here (holds for WL6)
 				var ew: bool = id % 2 == 0
 
@@ -102,21 +107,20 @@ func _spawn_walls(grid: Array) -> void:
 
 				# Make sure adjacent walls exist and set side door texture
 				if ew:
-					assert(_tile_is_wall(id_e) and _tile_is_wall(id_w))
+					assert(_l1_is_wall(id_e) and _l1_is_wall(id_w))
 					mesh_e.material_override = _get_cached_material(door_side_id, id_e, id_e, id_e)
 					mesh_w.material_override = _get_cached_material(door_side_id, id_w, id_w, id_w)
 				else:
-					assert(_tile_is_wall(id_n) and _tile_is_wall(id_s))
+					assert(_l1_is_wall(id_n) and _l1_is_wall(id_s))
 					mesh_n.material_override = _get_cached_material(id_n, id_n, id_n, door_side_id)
 					mesh_s.material_override = _get_cached_material(id_s, id_n, id_s, door_side_id)
 
 				# Make sure door is accessible from at least one side
 				# NOTE: This assumes floor tiles must be used!
 				if ew:
-					assert(_tile_is_floor(id_n) or _tile_is_floor(id_s))
+					assert(_l1_is_floor(id_n) or _l1_is_floor(id_s))
 				else:
-					assert(_tile_is_floor(id_e) or _tile_is_floor(id_w))
-
+					assert(_l1_is_floor(id_e) or _l1_is_floor(id_w))
 
 # ------------------------------------------------------------
 #  helper: recursively find the first MeshInstance3D in a node

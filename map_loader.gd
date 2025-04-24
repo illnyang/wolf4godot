@@ -7,6 +7,7 @@ extends Node3D
 ##  • 90‑101 doors          (optional – see comments below)
 
 @export var wall_scene      : PackedScene            # your current wall scene
+@export var wall_shader     : Shader
 @export var json_path       : String = "res://assets/maps/map_00_Wolf1 Map1.json"
 @export var tile_size       : float  = 1.0           # 1 Godot unit == 1 tile
 @export var texture_folder  : String = "res://assets/walls/"
@@ -43,6 +44,10 @@ func _load_grid() -> Array:
 
 # -------------------------------------------------------------------
 # Walk the grid and instantiate walls
+# TODO: BoxMesh3D includes top & bottom faces, which is wasteful.
+#       We only need 4 faces - front, back, left & right.
+# TODO: ideally, we should be able to generate entire map geometry in one go
+#       by using SurfaceTool and some shader/UV mathemagics, perhaps with greedy meshing
 # -------------------------------------------------------------------
 func _spawn_walls(grid: Array) -> void:
 	for y in range(grid.size()):
@@ -95,16 +100,23 @@ func _apply_texture(node: Node3D, id: int) -> void:
 		return
 
 	var tex_path := "%s%d.png" % [texture_folder, id - 1]
+	var tex_shaded_path := "%s%d_shaded.png" % [texture_folder, id - 1]
+
 	if not ResourceLoader.exists(tex_path):
-		push_warning("Texture file missing: " + tex_path)
+		push_warning("Wall texture file missing: " + tex_path)
+		return
+		
+	if not ResourceLoader.exists(tex_path):
+		push_warning("Shaded wall texture file missing: " + tex_shaded_path)
 		return
 
 	var tex: Texture2D = load(tex_path)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode   = StandardMaterial3D.SHADING_MODE_UNSHADED
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	mat.albedo_texture = tex
-	mat.uv1_scale = Vector3(3, 2, 2)
+	var tex_shaded: Texture2D = load(tex_shaded_path)
+	
+	var mat := ShaderMaterial.new()
+	mat.shader = wall_shader
+	mat.set_shader_parameter("tex", tex)
+	mat.set_shader_parameter("tex_shaded", tex_shaded)
 
 	_mat_cache[id] = mat
 	mesh.material_override = mat

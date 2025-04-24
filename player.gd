@@ -13,6 +13,11 @@ func _physics_process(delta):
 	if Input.is_action_pressed("move_backward"):
 		movement += $Camera3D.global_transform.basis.z * SPEED * delta
 
+	if Input.is_action_pressed("fly_up"):
+		movement += $Camera3D.global_transform.basis.y * SPEED * delta
+	if Input.is_action_pressed("fly_down"):
+		movement -= $Camera3D.global_transform.basis.y * SPEED * delta
+
 	# Update velocity
 	velocity = movement
 

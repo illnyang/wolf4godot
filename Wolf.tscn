@@ -16,6 +16,7 @@ shading_mode = 0
 albedo_color = Color(0.443137, 0.443137, 0.443137, 1)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_auuya"]
+material = SubResource("StandardMaterial3D_w4mwi")
 size = Vector2(64, 64)
 center_offset = Vector3(32, 0, 32)
 
@@ -23,7 +24,8 @@ center_offset = Vector3(32, 0, 32)
 shading_mode = 0
 albedo_color = Color(0.219608, 0.219608, 0.219608, 1)
 
-[sub_resource type="PlaneMesh" id="PlaneMesh_w4mwi"]
+[sub_resource type="PlaneMesh" id="PlaneMesh_vyeuo"]
+material = SubResource("StandardMaterial3D_auuya")
 flip_faces = true
 size = Vector2(64, 64)
 center_offset = Vector3(32, 0, 32)
@@ -64,10 +66,8 @@ wall_shader = ExtResource("5_w4mwi")
 
 [node name="Floor" type="MeshInstance3D" parent="MapLoader"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
-material_override = SubResource("StandardMaterial3D_w4mwi")
 mesh = SubResource("PlaneMesh_auuya")
 
 [node name="Ceiling" type="MeshInstance3D" parent="MapLoader"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-material_override = SubResource("StandardMaterial3D_auuya")
-mesh = SubResource("PlaneMesh_w4mwi")
+mesh = SubResource("PlaneMesh_vyeuo")

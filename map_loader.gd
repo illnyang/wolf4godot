@@ -1,10 +1,6 @@
 extends Node3D
 ## Simple Wolf 3‑D map loader that skins each wall instance
 ## with the matching wall##.png texture.
-##
-##  • 0‑63  regular walls  (extracted as wall00.png … wall63.png)
-##  • 64‑255 floors / empty space – ignored here
-##  • 90‑101 doors          (optional – see comments below)
 
 @export var wall_scene      : PackedScene            # your current wall scene
 @export var wall_shader     : Shader
@@ -12,11 +8,24 @@ extends Node3D
 @export var tile_size       : float  = 1.0           # 1 Godot unit == 1 tile
 @export var texture_folder  : String = "res://assets/walls/"
 
+const door_side_id = 51
+
+func _tile_is_wall(id: int) -> bool:
+	return id >= 1 and id <= 53
+
+func _tile_is_door(id: int) -> bool:
+	return id >= 90 and id <= 95
+
+func _tile_is_elevator_door(id: int) -> bool:
+	return id == 100 or id == 101
+
+func _tile_is_floor(id: int) -> bool:
+	return id >= 106 and id <= 143
 
 # -------------------------------------------------------------------
-# Cached materials – one per wall id, created on first use
+# Cached materials - each for every combination of textures on 4 faces
 # -------------------------------------------------------------------
-var _mat_cache: Dictionary = {}      # int → StandardMaterial3D
+var _mat_cache: Dictionary = {}          # int → ShaderMaterial
 
 
 # -------------------------------------------------------------------
@@ -48,26 +57,65 @@ func _load_grid() -> Array:
 #       We only need 4 faces - front, back, left & right.
 # TODO: ideally, we should be able to generate entire map geometry in one go
 #       by using SurfaceTool and some shader/UV mathemagics, perhaps with greedy meshing
+# NOTE: In some edge-cases two-pass nature of this function will generate unused materials.
 # -------------------------------------------------------------------
 func _spawn_walls(grid: Array) -> void:
+	var _walls: Array = []
+
+	# Spawn regular walls
+	for y in range(grid.size()):
+		_walls.append([])
+		_walls[y].resize(grid[y].size())
+		for x in range(grid[y].size()):
+			var id := int(grid[y][x])
+			if _tile_is_wall(id):
+				var wall := wall_scene.instantiate()
+				wall.position = Vector3(x * tile_size, 0, y * tile_size)
+
+				var mesh = _find_mesh(wall)
+				mesh.material_override = _get_cached_material(id, id, id, id)
+
+				_walls[y][x] = wall
+				add_child(wall)
+
+	# Apply side door texture to walls (hence the second pass) which are adjacent to doors
+	# TODO: Check for invalid door placement at grid boundaries
+	# TODO: Set side textures for walls adjacent to elevator doors
 	for y in range(grid.size()):
 		for x in range(grid[y].size()):
 			var id := int(grid[y][x])
 
-			# ------  regular walls 0‑63  ----------------------------
-			if id > 0 and id <= 63:
-				var wall := wall_scene.instantiate()
-				wall.position = Vector3(x * tile_size, 0, y * tile_size)
-				_apply_texture(wall, id)
-				add_child(wall)
+			if _tile_is_door(id):
+				# We assume EW/NS ids alternate here (holds for WL6)
+				var ew: bool = id % 2 == 0
 
-			# ------  doors 90‑101  (optional)  ----------------------
-			# elif id >= 90 and id <= 101:
-			#     var door := door_scene.instantiate()
-			#     door.position = Vector3(x * tile_size, 0, y * tile_size)
-			#     _apply_texture(door, id)   # or dedicated door material
-			#     add_child(door)
-			# --------------------------------------------------------
+				# TODO: id should be included in Wall node itself
+				var id_n := int(grid[y][x - 1])
+				var id_e := int(grid[y - 1][x])
+				var id_s := int(grid[y][x + 1])
+				var id_w := int(grid[y + 1][x])
+
+				var mesh_n := _find_mesh(_walls[y][x - 1])
+				var mesh_e := _find_mesh(_walls[y - 1][x])
+				var mesh_s := _find_mesh(_walls[y][x + 1])
+				var mesh_w := _find_mesh(_walls[y + 1][x])
+
+				# Make sure adjacent walls exist and set side door texture
+				if ew:
+					assert(_tile_is_wall(id_e) and _tile_is_wall(id_w))
+					mesh_e.material_override = _get_cached_material(door_side_id, id_e, id_e, id_e)
+					mesh_w.material_override = _get_cached_material(door_side_id, id_w, id_w, id_w)
+				else:
+					assert(_tile_is_wall(id_n) and _tile_is_wall(id_s))
+					mesh_n.material_override = _get_cached_material(id_n, id_n, id_n, door_side_id)
+					mesh_s.material_override = _get_cached_material(id_s, id_n, id_s, door_side_id)
+
+				# Make sure door is accessible from at least one side
+				# NOTE: This assumes floor tiles must be used!
+				if ew:
+					assert(_tile_is_floor(id_n) or _tile_is_floor(id_s))
+				else:
+					assert(_tile_is_floor(id_e) or _tile_is_floor(id_w))
 
 
 # ------------------------------------------------------------
@@ -77,6 +125,8 @@ func _spawn_walls(grid: Array) -> void:
 #  https://www.reddit.com/r/godot/comments/13pm5o5/instantiating_a_scene_with_constructor_parameters/
 # ------------------------------------------------------------
 func _find_mesh(n: Node) -> MeshInstance3D:
+	if n == null:
+		return null
 	if n is MeshInstance3D:
 		return n
 	for c in n.get_children():
@@ -87,36 +137,43 @@ func _find_mesh(n: Node) -> MeshInstance3D:
 
 
 # ------------------------------------------------------------
-#  Build / fetch the material, then apply it to that mesh
+#  Build/fetch material given textures for each face
 # ------------------------------------------------------------
-func _apply_texture(node: Node3D, id: int) -> void:
-	var mesh := _find_mesh(node)
-	if mesh == null:
-		push_warning("No MeshInstance3D inside wall_scene!")
-		return
+func _get_cached_material(id_n: int, id_e: int, id_s: int, id_w: int) -> ShaderMaterial:
+	# Unique integer for every possible combination
+	var combined_id: int = (id_n << 24) | (id_e << 16) | (id_s << 8) | id_w
 
-	if _mat_cache.has(id):
-		mesh.material_override = _mat_cache[id]
-		return
+	if _mat_cache.has(combined_id):
+		return _mat_cache[combined_id]
 
-	var tex_path := "%s%d.png" % [texture_folder, id - 1]
-	var tex_shaded_path := "%s%d_shaded.png" % [texture_folder, id - 1]
+	var tex_n := "%s%d.png" % [texture_folder, id_n - 1]
+	var tex_e := "%s%d_shaded.png" % [texture_folder, id_e - 1]
+	var tex_s := "%s%d.png" % [texture_folder, id_s - 1]
+	var tex_w := "%s%d_shaded.png" % [texture_folder, id_w - 1]
 
-	if not ResourceLoader.exists(tex_path):
-		push_warning("Wall texture file missing: " + tex_path)
-		return
-		
-	if not ResourceLoader.exists(tex_path):
-		push_warning("Shaded wall texture file missing: " + tex_shaded_path)
-		return
-
-	var tex: Texture2D = load(tex_path)
-	var tex_shaded: Texture2D = load(tex_shaded_path)
+	if not ResourceLoader.exists(tex_n):
+		push_warning("North wall texture file missing: " + tex_n)
+		return null
 	
+	if not ResourceLoader.exists(tex_e):
+		push_warning("East wall texture file missing: " + tex_e)
+		return null
+
+	if not ResourceLoader.exists(tex_s):
+		push_warning("South wall texture file missing: " + tex_s)
+		return null
+
+	if not ResourceLoader.exists(tex_w):
+		push_warning("West wall texture file missing: " + tex_w)
+		return null
+
 	var mat := ShaderMaterial.new()
 	mat.shader = wall_shader
-	mat.set_shader_parameter("tex", tex)
-	mat.set_shader_parameter("tex_shaded", tex_shaded)
+	mat.set_shader_parameter("tex_front", load(tex_n))
+	mat.set_shader_parameter("tex_back", load(tex_s))
+	mat.set_shader_parameter("tex_left", load(tex_e))
+	mat.set_shader_parameter("tex_right", load(tex_w))
 
-	_mat_cache[id] = mat
-	mesh.material_override = mat
+	_mat_cache[combined_id] = mat
+
+	return mat

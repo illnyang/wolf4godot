@@ -2,7 +2,13 @@
 shader_type spatial;
 render_mode unshaded;
 
-uniform sampler2D tex : filter_nearest;
+uniform sampler2D tex_front : filter_nearest;
+uniform sampler2D tex_back : filter_nearest;
+uniform sampler2D tex_left : filter_nearest;   // shaded
+uniform sampler2D tex_right : filter_nearest;  // shaded
+uniform sampler2D tex_top : filter_nearest;    // wasteful
+uniform sampler2D tex_bottom : filter_nearest; // wasteful
+
 uniform sampler2D tex_shaded : filter_nearest;
 
 void fragment() {
@@ -15,21 +21,21 @@ void fragment() {
 	// Select texture based on face index
 	if (face < 0.5) {
 		// Front face (0)
-		ALBEDO = texture(tex, UV_adjusted).rgb;
+		ALBEDO = texture(tex_front, UV_adjusted).rgb;
 	} else if (face < 1.5) {
 		// Back face (1)
-		ALBEDO = texture(tex, UV_adjusted).rgb;
+		ALBEDO = texture(tex_back, UV_adjusted).rgb;
 	} else if (face < 2.5) {
 		// Left face (2)
-		ALBEDO = texture(tex_shaded, UV_adjusted).rgb;
+		ALBEDO = texture(tex_left, UV_adjusted).rgb;
 	} else if (face < 3.5) {
 		// Right face (3)
-		ALBEDO = texture(tex_shaded, UV_adjusted).rgb;
+		ALBEDO = texture(tex_right, UV_adjusted).rgb;
 	} else if (face < 4.5) {
 		// Top face (4)
-		ALBEDO = texture(tex, UV_adjusted).rgb;
+		ALBEDO = texture(tex_top, UV_adjusted).rgb;
 	} else {
 		// Bottom face (5)
-		ALBEDO = texture(tex, UV_adjusted).rgb;
+		ALBEDO = texture(tex_bottom, UV_adjusted).rgb;
 	}
 }

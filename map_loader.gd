@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 ## Simple Wolf 3‑D map loader that skins each wall instance
 ## with the matching wall##.png texture.

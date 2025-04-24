@@ -66,9 +66,9 @@ wall_scene = ExtResource("4_x42b1")
 wall_shader = ExtResource("5_w4mwi")
 
 [node name="Floor" type="MeshInstance3D" parent="MapLoader"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.5, -0.5)
 mesh = SubResource("PlaneMesh_auuya")
 
 [node name="Ceiling" type="MeshInstance3D" parent="MapLoader"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0.5, -0.5)
 mesh = SubResource("PlaneMesh_vyeuo")

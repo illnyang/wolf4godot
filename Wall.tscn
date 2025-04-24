@@ -1,6 +1,7 @@
 [gd_scene load_steps=2 format=3 uid="uid://d33bweulcnyk4"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_pncd5"]
+lightmap_size_hint = Vector2i(34, 51)
 add_uv2 = true
 uv2_padding = 12.0
 

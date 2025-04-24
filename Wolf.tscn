@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=11 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
 [ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://player.gd" id="2_55onw"]
@@ -11,11 +11,22 @@ subdivide_width = 1
 subdivide_height = 1
 subdivide_depth = 1
 
-[sub_resource type="BoxMesh" id="BoxMesh_55onw"]
-size = Vector3(20, 0.5, 20)
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w4mwi"]
+shading_mode = 0
+albedo_color = Color(0.443137, 0.443137, 0.443137, 1)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_55onw"]
-vertex_color_is_srgb = true
+[sub_resource type="PlaneMesh" id="PlaneMesh_auuya"]
+size = Vector2(64, 64)
+center_offset = Vector3(32, 0, 32)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_auuya"]
+shading_mode = 0
+albedo_color = Color(0.219608, 0.219608, 0.219608, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_w4mwi"]
+flip_faces = true
+size = Vector2(64, 64)
+center_offset = Vector3(32, 0, 32)
 
 [node name="Node3D" type="Node3D"]
 physics_interpolation_mode = 1
@@ -38,13 +49,6 @@ polygon = PackedVector2Array(0.486145, 0.500383, -0.509438, 0.490012, -0.499067,
 [node name="Camera3D" type="Camera3D" parent="Player"]
 current = true
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-physics_interpolation_mode = 1
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
-layers = 3
-mesh = SubResource("BoxMesh_55onw")
-surface_material_override/0 = SubResource("StandardMaterial3D_55onw")
-
 [node name="SpotLight3D" type="SpotLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986486, 0)
 light_energy = 13.563
@@ -57,3 +61,13 @@ light_specular = 4.169
 script = ExtResource("3_en2fo")
 wall_scene = ExtResource("4_x42b1")
 wall_shader = ExtResource("5_w4mwi")
+
+[node name="Floor" type="MeshInstance3D" parent="MapLoader"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+material_override = SubResource("StandardMaterial3D_w4mwi")
+mesh = SubResource("PlaneMesh_auuya")
+
+[node name="Ceiling" type="MeshInstance3D" parent="MapLoader"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+material_override = SubResource("StandardMaterial3D_auuya")
+mesh = SubResource("PlaneMesh_w4mwi")

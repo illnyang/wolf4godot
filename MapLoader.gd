@@ -38,6 +38,8 @@ class L2Utils:
 	static func get_start_dir(id: int) -> int:
 		return id - 19
 
+	static func is_push_wall(id: int) -> bool:
+		return id == 98
 
 class MapGrid:
 	const _map_size: int = 64
@@ -201,11 +203,11 @@ func spawn_layer2() -> void:
 			if L2Utils.is_start(id):
 				var start_dir = L2Utils.get_start_dir(id)
 				var player_node: Node3D = player_scene.instantiate()
-				
+
 				player_node.position = Vector3(x + 0.5, 0, y + 0.5)
 				player_node.rotation_degrees.y = start_dir * -90
 				add_child(player_node)
-				
+
 				# Ignore multiple start points even if present
 				break
 
@@ -232,7 +234,9 @@ func get_sector_mesh(color: Color, flip_faces: bool) -> QuadMesh:
 # TileGrid mesh generation code
 #-----------------------------------------------------
 func is_air(x: int, y: int) -> bool:
-	return grid.is_within_grid(x, y) and not L1Utils.is_wall(grid.tile_at(x, y))
+	if not grid.is_within_grid(x, y):
+		return true
+	return not L1Utils.is_wall(grid.tile_at(x, y)) or L2Utils.is_push_wall(grid.thing_at(x, y))
 
 enum {
 	FLAG_NORTH = 1 << NORTH,

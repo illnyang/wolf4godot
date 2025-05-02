@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=5 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
 [ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://Player.gd" id="2_55onw"]
@@ -8,25 +8,6 @@
 subdivide_width = 1
 subdivide_height = 1
 subdivide_depth = 1
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w4mwi"]
-shading_mode = 0
-albedo_color = Color(0.443137, 0.443137, 0.443137, 1)
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_auuya"]
-material = SubResource("StandardMaterial3D_w4mwi")
-size = Vector2(64, 64)
-center_offset = Vector3(32, 0, 32)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_auuya"]
-shading_mode = 0
-albedo_color = Color(0.219608, 0.219608, 0.219608, 1)
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_vyeuo"]
-material = SubResource("StandardMaterial3D_auuya")
-flip_faces = true
-size = Vector2(64, 64)
-center_offset = Vector3(32, 0, 32)
 
 [node name="Node3D" type="Node3D"]
 physics_interpolation_mode = 1
@@ -60,11 +41,3 @@ light_specular = 4.169
 
 [node name="MapLoader" type="Node3D" parent="."]
 script = ExtResource("3_en2fo")
-
-[node name="Floor" type="MeshInstance3D" parent="MapLoader"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.5, -0.5)
-mesh = SubResource("PlaneMesh_auuya")
-
-[node name="Ceiling" type="MeshInstance3D" parent="MapLoader"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0.5, -0.5)
-mesh = SubResource("PlaneMesh_vyeuo")

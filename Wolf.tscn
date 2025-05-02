@@ -1,10 +1,8 @@
-[gd_scene load_steps=11 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=9 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
-[ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://player.gd" id="2_55onw"]
-[ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://map_loader.gd" id="3_en2fo"]
-[ext_resource type="PackedScene" uid="uid://d33bweulcnyk4" path="res://Wall.tscn" id="4_x42b1"]
-[ext_resource type="Shader" uid="uid://2ux4lwwq2nn2" path="res://wall.gdshader" id="5_w4mwi"]
+[ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://Player.gd" id="2_55onw"]
+[ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://MapLoader.gd" id="3_en2fo"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_x42b1"]
 subdivide_width = 1
@@ -62,8 +60,6 @@ light_specular = 4.169
 
 [node name="MapLoader" type="Node3D" parent="."]
 script = ExtResource("3_en2fo")
-wall_scene = ExtResource("4_x42b1")
-wall_shader = ExtResource("5_w4mwi")
 
 [node name="Floor" type="MeshInstance3D" parent="MapLoader"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.5, -0.5)

@@ -2,27 +2,26 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://en6fkqbmdx2d"
-path.s3tc="res://.godot/imported/6.png-0440931014e9924b53ee26b2bf4ceae6.s3tc.ctex"
+uid="uid://dr3nucfpptk5v"
+path="res://.godot/imported/04_shaded.png-f3df0f86574388d568d7ca329faa0c60.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/walls/6.png"
-dest_files=["res://.godot/imported/6.png-0440931014e9924b53ee26b2bf4ceae6.s3tc.ctex"]
+source_file="res://assets/walls/04_shaded.png"
+dest_files=["res://.godot/imported/04_shaded.png-f3df0f86574388d568d7ca329faa0c60.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

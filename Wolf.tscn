@@ -1,43 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=2 format=3 uid="uid://bwlp1654240cs"]
 
-[ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://player.tscn" id="1_6m6ci"]
-[ext_resource type="Script" uid="uid://c6k6gfh5qynqn" path="res://Player.gd" id="2_55onw"]
 [ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://MapLoader.gd" id="3_en2fo"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_x42b1"]
-subdivide_width = 1
-subdivide_height = 1
-subdivide_depth = 1
 
 [node name="Node3D" type="Node3D"]
 physics_interpolation_mode = 1
-
-[node name="Player" parent="." instance=ExtResource("1_6m6ci")]
-script = ExtResource("2_55onw")
-
-[node name="CharacterBody3D" type="CharacterBody3D" parent="Player"]
-collision_layer = 3
-collision_mask = 3
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Player/CharacterBody3D"]
-physics_interpolation_mode = 1
-mesh = SubResource("BoxMesh_x42b1")
-
-[node name="CollisionPolygon3D" type="CollisionPolygon3D" parent="Player/CharacterBody3D"]
-physics_interpolation_mode = 1
-polygon = PackedVector2Array(0.486145, 0.500383, -0.509438, 0.490012, -0.499067, -0.484829, 0.49133, -0.484829)
-
-[node name="Camera3D" type="Camera3D" parent="Player"]
-current = true
-fov = 72.0
-
-[node name="SpotLight3D" type="SpotLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986486, 0)
-light_energy = 13.563
-light_indirect_energy = 13.068
-light_volumetric_fog_energy = 12.358
-light_size = 0.484
-light_specular = 4.169
 
 [node name="MapLoader" type="Node3D" parent="."]
 script = ExtResource("3_en2fo")

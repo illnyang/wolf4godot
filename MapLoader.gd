@@ -5,6 +5,10 @@ extends Node3D
 @export var json_path : String = "res://assets/maps/00_Wolf1 Map1.json"
 @export var texture_folder: String = "res://assets/walls/"
 
+enum {
+	NORTH, EAST, SOUTH, WEST
+}
+
 class L1Utils:
 	const door_side_id = 51
 
@@ -25,6 +29,14 @@ class L1Utils:
 		# false = north/south
 		# true = east/west
 		return id % 2 == 0
+
+
+class L2Utils:
+	static func is_start(id: int) -> bool:
+		return id >= 19 and id <= 22
+
+	static func get_start_dir(id: int) -> int:
+		return id - 19
 
 
 class MapGrid:
@@ -142,10 +154,20 @@ var grid: MapGrid
 var atlas: WallAtlas
 
 
+# NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
+#		By doing this, anything we generate doesn't get serialized into the tscn file.
+#		This is precisely what we want, online-only generation of resources from raw data.
 func _ready() -> void:
 	grid = MapGrid.new(json_path)
 	atlas = WallAtlas.new(texture_folder)
+	spawn_layer1()
+	spawn_layer2()
 
+
+#-----------------------------------------------------
+# Layer1 (Tiles) spawning code
+#-----------------------------------------------------
+func spawn_layer1() -> void:
 	var tiles_mesh := MeshInstance3D.new()
 	tiles_mesh.name = "MapMesh"
 	tiles_mesh.mesh = get_tiles_mesh()
@@ -161,12 +183,31 @@ func _ready() -> void:
 	floor_mesh.position = Vector3(0, -0.5, 0)
 	floor_mesh.mesh = get_sector_mesh(grid.floor_color, false)
 
-	# NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
-	#		By doing this, anything we generate doesn't get serialized into the tscn file.
-	#		This is precisely what we want, online-only generation of resources from raw data.
 	tiles_mesh.add_child(ceiling_mesh)
 	tiles_mesh.add_child(floor_mesh)
 	add_child(tiles_mesh)
+
+
+#-----------------------------------------------------
+# Layer2 (Things) spawning code
+#---------------------------------------------dsd--------
+var player_scene = preload("res://Player.tscn")
+
+func spawn_layer2() -> void:
+	# Spawn Player in the correct orientation
+	for y in range(grid.height()):
+		for x in range(grid.width()):
+			var id = grid.thing_at(x, y)
+			if L2Utils.is_start(id):
+				var start_dir = L2Utils.get_start_dir(id)
+				var player_node: Node3D = player_scene.instantiate()
+				
+				player_node.position = Vector3(x + 0.5, 0, y + 0.5)
+				player_node.rotation_degrees.y = start_dir * -90
+				add_child(player_node)
+				
+				# Ignore multiple start points even if present
+				break
 
 #-----------------------------------------------------
 # Floor/Ceiling (aka sector) mesh generation code
@@ -194,10 +235,10 @@ func is_air(x: int, y: int) -> bool:
 	return grid.is_within_grid(x, y) and not L1Utils.is_wall(grid.tile_at(x, y))
 
 enum {
-	FLAG_NORTH = 1 << 0,
-	FLAG_EAST  = 1 << 1,
-	FLAG_SOUTH = 1 << 2,
-	FLAG_WEST  = 1 << 3
+	FLAG_NORTH = 1 << NORTH,
+	FLAG_EAST  = 1 << EAST,
+	FLAG_SOUTH = 1 << SOUTH,
+	FLAG_WEST  = 1 << WEST
 }
 
 func is_adjecent_to_door(x: int, y: int) -> int:

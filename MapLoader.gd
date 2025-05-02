@@ -2,7 +2,7 @@
 class_name MapLoader
 extends Node3D
 
-@export var json_path : String = "res://assets/maps/map_00_Wolf1 Map1.json"
+@export var json_path : String = "res://assets/maps/00_Wolf1 Map1.json"
 @export var texture_folder: String = "res://assets/walls/"  # Folder containing 64x64 textures
 
 class L1Utils:
@@ -20,33 +20,50 @@ class L1Utils:
 	static func is_floor(id: int) -> bool:
 		return id >= 106 and id <= 143
 
+	static func get_axis(id: int) -> bool:
+		# Holds for WL6
+		# false = north/south
+		# true = east/west
+		return id % 2 == 0
+
 
 class MapGrid:
-	var _grid: Array
+	const _map_size: int = 64
+	var _grids: Array
 	
 	func _init(json_path: String) -> void:
-		load_grid(json_path)
+		load_grids(json_path)
 	
-	func load_grid(json_path: String) -> void:
+	func load_grids(json_path: String) -> void:
 		var file := FileAccess.open(json_path, FileAccess.READ)
 		var content := file.get_as_text()
-		_grid = JSON.parse_string(content) as Array
+		_grids = JSON.parse_string(content) as Array
+		# TODO: Let these asserts be a reminder that we need to change JSON layout.
+		#		Wolf maps are 64x64, so we should have two flat arrays with 4096 elements.
+		assert(_grids[0].size() == _map_size and _grids[1].size() == _map_size)
+		for y in range(_grids[0].size()):
+			assert(_grids[0][y].size() == _map_size and _grids[1][y].size() == _map_size)
 	
 	func width(y: int) -> int:
-		return _grid[y].size()
+		return _map_size
 	
 	func height() -> int:
-		return _grid.size()
+		return _map_size
 	
 	func is_within_grid(x: int, y: int) -> bool:
 		if y < 0 or x < 0:
 			return false
-		if y >= _grid.size() or x >= _grid[y].size():
+		if y >= _map_size or x >= _map_size:
 			return false
 		return true
 	
-	func at(x: int, y: int) -> int:
-		return _grid[y][x]
+	# layer 1 accessor
+	func wall_at(x: int, y: int) -> int:
+		return _grids[0][y][x]
+
+	# layer 2 accessor
+	func thing_at(x: int, y: int) -> int:
+		return _grids[1][y][x]
 
 
 class WallAtlas:
@@ -59,6 +76,10 @@ class WallAtlas:
 		if material == null:
 			material = StandardMaterial3D.new()
 			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			# TODO: Using anything other than nearest filtering will cause bleeding artifacts
+			#		at the edges. This could be avoided if we switch to using `Texture2DArray`.
+			#       It would also get rid of the requirement that all wall textures must be
+			#		of the same size.
 			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		material.albedo_texture = _generate_atlas_texture(texture_folder)
 	
@@ -121,7 +142,7 @@ func _ready() -> void:
 
 
 func is_air(x: int, y: int) -> bool:
-	return grid.is_within_grid(x, y) and not L1Utils.is_wall(grid.at(x, y))
+	return grid.is_within_grid(x, y) and not L1Utils.is_wall(grid.wall_at(x, y))
 
 enum {
 	FLAG_NORTH = 1 << 0,
@@ -149,12 +170,12 @@ func is_adjecent_to_door(x: int, y: int) -> int:
 		if not grid.is_within_grid(adj.x, adj.y):
 			continue
 
-		var id = grid.at(adj.x, adj.y)
+		var id = grid.wall_at(adj.x, adj.y)
 		
 		if L1Utils.is_door(id) or L1Utils.is_elevator_door(id):
-			var ew: bool = id % 2 == 0 # Holds for WL6
-			var adj_ew: bool = i % 2 == 1
-			if ew == adj_ew:
+			var door_axis: bool = L1Utils.get_axis(id)
+			var adj_axis: bool = i % 2 == 1
+			if door_axis == adj_axis:
 				flags |= 1 << i
 	
 	return flags
@@ -172,7 +193,7 @@ func init_block_array():
 			if is_air(x, y):
 				continue
 			
-			var id = grid.at(x, y)
+			var id = grid.wall_at(x, y)
 			var pos: Vector3 = Vector3(x, 0, y)
 			
 			var door_sides = is_adjecent_to_door(x, y)

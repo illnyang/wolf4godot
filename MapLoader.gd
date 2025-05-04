@@ -110,7 +110,6 @@ class WallAtlas:
 			#       It would also get rid of the requirement that all wall textures must be
 			#		of the same size.
 			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-			material.cull_mode = BaseMaterial3D.CULL_DISABLED # for door mesh
 		material.albedo_texture = _generate_atlas_texture(texture_folder)
 
 	func _generate_atlas_texture(texture_folder: String) -> ImageTexture:
@@ -261,22 +260,36 @@ var uvs = PackedVector2Array()
 var face_count: int = 0
 
 
-func add_uvs(id: int, shaded: bool):
+func add_uvs(id: int, shaded: bool, fliph: bool = false):
 	var idx = (((id - 1) * 2) + (1 * int(shaded)))
 	var x = (idx % atlas.atlas_columns)
 	var y = (idx / atlas.atlas_columns)
-	uvs.append(Vector2(
-		atlas.tex_div.x * x,
-		atlas.tex_div.y * y))
-	uvs.append(Vector2(
-		atlas.tex_div.x * x + atlas.tex_div.x,
-		atlas.tex_div.y * y))
-	uvs.append(Vector2(
-		atlas.tex_div.x * x + atlas.tex_div.x,
-		atlas.tex_div.y * y + atlas.tex_div.y))
-	uvs.append(Vector2(
-		atlas.tex_div.x * x,
-		atlas.tex_div.y * y + atlas.tex_div.y))
+	if not fliph:
+		uvs.append(Vector2(
+			atlas.tex_div.x * x,
+			atlas.tex_div.y * y))
+		uvs.append(Vector2(
+			atlas.tex_div.x * x + atlas.tex_div.x,
+			atlas.tex_div.y * y))
+		uvs.append(Vector2(
+			atlas.tex_div.x * x + atlas.tex_div.x,
+			atlas.tex_div.y * y + atlas.tex_div.y))
+		uvs.append(Vector2(
+			atlas.tex_div.x * x,
+			atlas.tex_div.y * y + atlas.tex_div.y))
+	else:
+		uvs.append(Vector2(
+			atlas.tex_div.x * x + atlas.tex_div.x,
+			atlas.tex_div.y * y))
+		uvs.append(Vector2(
+			atlas.tex_div.x * x,
+			atlas.tex_div.y * y))
+		uvs.append(Vector2(
+			atlas.tex_div.x * x,
+			atlas.tex_div.y * y + atlas.tex_div.y))
+		uvs.append(Vector2(
+			atlas.tex_div.x * x + atlas.tex_div.x,
+			atlas.tex_div.y * y + atlas.tex_div.y))
 
 
 func add_tris():
@@ -303,14 +316,12 @@ func get_door_mesh(axis: bool) -> ArrayMesh:
 	# TODO: maybe rotate node itself instead?
 	if axis:
 		# EAST / WEST
-		# NOTE: backface culling is disabled
-		#vertices.append(Vector3(0,  0.5,  0.5))
-		#vertices.append(Vector3(0,  0.5, -0.5))
-		#vertices.append(Vector3(0, -0.5, -0.5))
-		#vertices.append(Vector3(0, -0.5,  0.5))
-		#add_tris()
-		# TODO: flip UVs so that the hoor handle stays on the same side
-		#add_uvs(L1Utils.door_id, true)
+		vertices.append(Vector3(0,  0.5,  0.5))
+		vertices.append(Vector3(0,  0.5, -0.5))
+		vertices.append(Vector3(0, -0.5, -0.5))
+		vertices.append(Vector3(0, -0.5,  0.5))
+		add_tris()
+		add_uvs(L1Utils.door_id, true, true)
 		vertices.append(Vector3(0,  0.5, -0.5))
 		vertices.append(Vector3(0,  0.5,  0.5))
 		vertices.append(Vector3(0, -0.5,  0.5))
@@ -325,14 +336,12 @@ func get_door_mesh(axis: bool) -> ArrayMesh:
 		vertices.append(Vector3(-0.5, -0.5, 0))
 		add_tris()
 		add_uvs(L1Utils.door_id, false)
-		# NOTE: backface culling is disabled
-		#vertices.append(Vector3( 0.5,  0.5, 0))
-		#vertices.append(Vector3(-0.5,  0.5, 0))
-		#vertices.append(Vector3(-0.5, -0.5, 0))
-		#vertices.append(Vector3( 0.5, -0.5, 0))
-		#add_tris()
-		# TODO: flip UVs so that the hoor handle stays on the same side
-		#add_uvs(L1Utils.door_id, false)
+		vertices.append(Vector3( 0.5,  0.5, 0))
+		vertices.append(Vector3(-0.5,  0.5, 0))
+		vertices.append(Vector3(-0.5, -0.5, 0))
+		vertices.append(Vector3( 0.5, -0.5, 0))
+		add_tris()
+		add_uvs(L1Utils.door_id, false, true)
 
 	var array = []
 	array.resize(Mesh.ARRAY_MAX)

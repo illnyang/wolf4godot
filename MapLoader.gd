@@ -180,11 +180,13 @@ func spawn_layer1() -> void:
 		for x in range(grid.width()):
 			var id = grid.tile_at(x, y)
 			if L1Utils.is_door(id) or L1Utils.is_elevator_door(id):
+				var door_axis: bool = L1Utils.get_axis(id)
 				var door_mesh := MeshInstance3D.new()
 				door_mesh.name = "Door"
-				door_mesh.mesh = door_ew if L1Utils.get_axis(id) else door_ns
+				door_mesh.mesh = door_ew if door_axis else door_ns
 				door_mesh.material_override = tile_material
 				door_mesh.position = Vector3(x + 0.5, 0, y + 0.5)
+				door_mesh.rotation_degrees.y += -90 * float(door_axis)
 				root_node.add_child(door_mesh)
 
 	add_child(root_node)
@@ -210,6 +212,7 @@ func spawn_layer2() -> void:
 
 				# Ignore multiple start points even if present
 				break
+
 
 #-----------------------------------------------------
 # Floor/Ceiling (aka sector) mesh generation
@@ -286,37 +289,18 @@ class TileMeshBuilder:
 #-----------------------------------------------------
 func get_door_mesh(axis: bool) -> ArrayMesh:
 	var builder := TileMeshBuilder.new()
-
-	# TODO: maybe rotate node itself instead?
-	if axis:
-		# EAST / WEST
-		builder.vertices.append(Vector3(0,  0.5,  0.5))
-		builder.vertices.append(Vector3(0,  0.5, -0.5))
-		builder.vertices.append(Vector3(0, -0.5, -0.5))
-		builder.vertices.append(Vector3(0, -0.5,  0.5))
-		builder.add_tris()
-		builder.add_uvs(L1Utils.door_id, true, true) # door handle stays on the same side
-		builder.vertices.append(Vector3(0,  0.5, -0.5))
-		builder.vertices.append(Vector3(0,  0.5,  0.5))
-		builder.vertices.append(Vector3(0, -0.5,  0.5))
-		builder.vertices.append(Vector3(0, -0.5, -0.5))
-		builder.add_tris()
-		builder.add_uvs(L1Utils.door_id, true)
-	else:
-		# SOUTH / NORTH
-		builder.vertices.append(Vector3(-0.5,  0.5, 0))
-		builder.vertices.append(Vector3( 0.5,  0.5, 0))
-		builder.vertices.append(Vector3( 0.5, -0.5, 0))
-		builder.vertices.append(Vector3(-0.5, -0.5, 0))
-		builder.add_tris()
-		builder.add_uvs(L1Utils.door_id, false)
-		builder.vertices.append(Vector3( 0.5,  0.5, 0))
-		builder.vertices.append(Vector3(-0.5,  0.5, 0))
-		builder.vertices.append(Vector3(-0.5, -0.5, 0))
-		builder.vertices.append(Vector3( 0.5, -0.5, 0))
-		builder.add_tris()
-		builder.add_uvs(L1Utils.door_id, false, true) # door handle stays on the same side
-
+	builder.vertices.append(Vector3(-0.5,  0.5, 0))
+	builder.vertices.append(Vector3( 0.5,  0.5, 0))
+	builder.vertices.append(Vector3( 0.5, -0.5, 0))
+	builder.vertices.append(Vector3(-0.5, -0.5, 0))
+	builder.add_tris()
+	builder.add_uvs(L1Utils.door_id, axis)
+	builder.vertices.append(Vector3( 0.5,  0.5, 0))
+	builder.vertices.append(Vector3(-0.5,  0.5, 0))
+	builder.vertices.append(Vector3(-0.5, -0.5, 0))
+	builder.vertices.append(Vector3( 0.5, -0.5, 0))
+	builder.add_tris()
+	builder.add_uvs(L1Utils.door_id, axis, true) # door handle stays on the same side
 	return builder.get_mesh()
 
 #-----------------------------------------------------

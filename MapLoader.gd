@@ -121,13 +121,7 @@ func update_tile_material() -> void:
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	const tex_size: int = 64
 
-	# Get all files in the source folder
-	var dir = DirAccess.open(texture_folder)
-	if not dir:
-		push_error("Could not open directory: " + texture_folder)
-		return
-
-	var files = dir.get_files()
+	var files = ResourceLoader.list_directory(texture_folder)
 	var images = []
 
 	# Load all valid texture files (assumes id-prefixed filenames cuz sorting)

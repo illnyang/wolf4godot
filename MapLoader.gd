@@ -39,6 +39,12 @@ class L2Utils:
 	static func is_push_wall(id: int) -> bool:
 		return id == 98
 
+	static func is_static(id: int) -> bool:
+		return id >= 23 and id <= 70
+
+	static func get_static_idx(id: int) -> int:
+		return id - 23
+
 
 class MapGrid:
 	const _map_size: int = 64
@@ -111,7 +117,7 @@ func _ready() -> void:
 #-----------------------------------------------------
 # Tile texture array & stub material generation
 #-----------------------------------------------------
-@export var texture_folder: String = "res://assets/walls/"
+@export var tile_texture_folder: String = "res://assets/walls/"
 var tile_shader: Shader = preload("res://Tile.gdshader")
 var tile_material: ShaderMaterial = null
 
@@ -119,7 +125,7 @@ func update_tile_material() -> void:
 	if tile_material == null:
 		tile_material = ShaderMaterial.new()
 		tile_material.shader = tile_shader
-	tile_material.set_shader_parameter("texture_array", _generate_texture_array(texture_folder))
+	tile_material.set_shader_parameter("texture_array", _generate_texture_array(tile_texture_folder))
 
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	const tex_size: int = 64
@@ -170,7 +176,6 @@ func spawn_layer1() -> void:
 	root_node.add_child(ceiling_inst)
 	root_node.add_child(floor_inst)
 
-	# Spawn Doors and PushWalls
 	var pushwall_meshes: Dictionary = {}
 	var door_ew_mesh: ArrayMesh = get_door_mesh(true)
 	var door_ns_mesh: ArrayMesh = get_door_mesh(false)
@@ -215,14 +220,15 @@ func spawn_layer1() -> void:
 #-----------------------------------------------------
 # Layer2 (Things) spawning
 #-----------------------------------------------------
+@export var sprite_texture_folder: String = "res://assets/sprites/"
 var player_scene = preload("res://Player.tscn")
 
 func spawn_layer2() -> void:
-	# Spawn Player in the correct orientation
+	var added_player: bool = false
 	for y in range(grid.height()):
 		for x in range(grid.width()):
 			var id = grid.thing_at(x, y)
-			if L2Utils.is_start(id):
+			if L2Utils.is_start(id) and not added_player:
 				var start_dir = L2Utils.get_start_dir(id)
 				var player_node: Node3D = player_scene.instantiate()
 
@@ -231,7 +237,23 @@ func spawn_layer2() -> void:
 				root_node.add_child(player_node)
 
 				# Ignore multiple start points even if present
-				break
+				added_player = true
+
+			elif L2Utils.is_static(id):
+				var static_idx = L2Utils.get_static_idx(id)
+				var sprite: Sprite3D = Sprite3D.new()
+
+				sprite.position = Vector3(x + 0.5, 0, y + 0.5)
+				sprite.texture = load("%sSPR_STAT_%d.png" % [sprite_texture_folder, static_idx])
+				sprite.centered = true
+				sprite.pixel_size = 0.015
+				sprite.axis = 2 # Z-Axis
+				sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+				sprite.transparent = true
+				sprite.double_sided = true
+				sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+
+				root_node.add_child(sprite)
 
 
 #-----------------------------------------------------

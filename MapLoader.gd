@@ -2,9 +2,6 @@
 class_name MapLoader
 extends Node3D
 
-@export var json_path : String = "res://assets/maps/00_Wolf1 Map1.json"
-@export var texture_folder: String = "res://assets/walls/"
-
 enum {
 	NORTH, EAST, SOUTH, WEST
 }
@@ -95,77 +92,60 @@ class MapGrid:
 		return _thingGrid[y * height() + x]
 
 
-class WallAtlas:
-	const atlas_columns: int = 8 
-	const tex_size: int = 64
-	var tex_div: Vector2
-	static var material: StandardMaterial3D = null
-
-	func _init(texture_folder: String) -> void:
-		if material == null:
-			material = StandardMaterial3D.new()
-			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			# TODO: Using anything other than nearest filtering will cause bleeding artifacts
-			#		at the edges. This could be avoided if we switch to using `Texture2DArray`.
-			#       It would also get rid of the requirement that all wall textures must be
-			#		of the same size.
-			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		material.albedo_texture = _generate_atlas_texture(texture_folder)
-
-	func _generate_atlas_texture(texture_folder: String) -> ImageTexture:
-		# Get all files in the source folder
-		var dir = DirAccess.open(texture_folder)
-		if not dir:
-			push_error("Could not open directory: " + texture_folder)
-			return
-
-		var files = dir.get_files()
-		var textures = []
-
-		# Load all valid texture files (assumes id-prefixed filenames cuz sorting)
-		for file in files:
-			if file.ends_with(".png"):
-				var texture: Texture2D = load(texture_folder + file)
-				assert(texture.get_width() == tex_size and texture.get_height() == tex_size)
-				textures.append(texture)
-
-		assert(textures.size() != 0)
-
-		# Calculate atlas dimensions
-		var atlas_rows = ceil(textures.size() / float(atlas_columns))
-		var atlas_width = atlas_columns * tex_size
-		var atlas_height = atlas_rows * tex_size
-		tex_div = Vector2(float(tex_size) / atlas_width, float(tex_size) / atlas_height)
-
-		# Create new image for the atlas
-		var atlas_image = Image.create_empty(atlas_width, atlas_height, false, Image.FORMAT_RGBA8)
-
-		# Composite all textures into the atlas
-		for i in range(textures.size()):
-			var x = i % atlas_columns
-			var y = i / atlas_columns
-
-			var src_image = textures[i].get_image()
-			src_image.convert(Image.FORMAT_RGBA8)
-
-			var pos = Vector2i(x * tex_size, y * tex_size)
-			atlas_image.blit_rect(src_image, Rect2i(0, 0, tex_size, tex_size), pos)
-
-		return ImageTexture.create_from_image(atlas_image)
-
-
+@export var json_path : String = "res://assets/maps/00_Wolf1 Map1.json"
 var grid: MapGrid
-var atlas: WallAtlas
-
 
 # NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
 #		By doing this, anything we generate doesn't get serialized into the tscn file.
 #		This is precisely what we want, online-only generation of resources from raw data.
 func _ready() -> void:
 	grid = MapGrid.new(json_path)
-	atlas = WallAtlas.new(texture_folder)
+	update_tile_material()
 	spawn_layer1()
 	spawn_layer2()
+
+
+#-----------------------------------------------------
+# Tile texture array & stub material generation
+#-----------------------------------------------------
+@export var texture_folder: String = "res://assets/walls/"
+var shader: Shader = preload("res://Tile.gdshader")
+var tile_material: ShaderMaterial = null
+
+func update_tile_material() -> void:
+	if tile_material == null:
+		tile_material = ShaderMaterial.new()
+		tile_material.shader = shader
+	tile_material.set_shader_parameter("texture_array", _generate_texture_array(texture_folder))
+
+static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
+	const tex_size: int = 64
+
+	# Get all files in the source folder
+	var dir = DirAccess.open(texture_folder)
+	if not dir:
+		push_error("Could not open directory: " + texture_folder)
+		return
+
+	var files = dir.get_files()
+	var images = []
+
+	# Load all valid texture files (assumes id-prefixed filenames cuz sorting)
+	for file in files:
+		if file.ends_with(".png"):
+			var image: Image = load(texture_folder + file)
+
+			if not image.has_mipmaps():
+				image.generate_mipmaps()
+
+			assert(image.get_width() == tex_size and image.get_height() == tex_size)
+			images.append(image)
+
+	assert(images.size() != 0)
+
+	var result = Texture2DArray.new()
+	result.create_from_images(images)
+	return result
 
 
 #-----------------------------------------------------
@@ -177,7 +157,7 @@ func spawn_layer1() -> void:
 	var tiles_mesh := MeshInstance3D.new()
 	tiles_mesh.name = "MapMesh"
 	tiles_mesh.mesh = get_tiles_mesh()
-	tiles_mesh.material_override = atlas.material
+	tiles_mesh.material_override = tile_material
 
 	var ceiling_mesh := MeshInstance3D.new()
 	ceiling_mesh.name = "CeilingMesh"
@@ -203,10 +183,9 @@ func spawn_layer1() -> void:
 				var door_mesh := MeshInstance3D.new()
 				door_mesh.name = "Door"
 				door_mesh.mesh = door_ew if L1Utils.get_axis(id) else door_ns
-				door_mesh.material_override = atlas.material
+				door_mesh.material_override = tile_material
 				door_mesh.position = Vector3(x + 0.5, 0, y + 0.5)
 				root_node.add_child(door_mesh)
-
 
 	add_child(root_node)
 
@@ -254,103 +233,91 @@ func get_sector_mesh(color: Color, flip_faces: bool) -> QuadMesh:
 #-----------------------------------------------------
 # ArrayMesh generation utils
 #-----------------------------------------------------
-var vertices = PackedVector3Array()
-var indices = PackedInt32Array()
-var uvs = PackedVector2Array()
-var face_count: int = 0
+class TileMeshBuilder:
+	var vertices = PackedVector3Array()
+	var indices = PackedInt32Array()
+	var uvs = PackedVector2Array()
+	var face_count: int = 0
 
+	# NOTE: We are repurposing the "UV" shader built-in such that:
+	#		- x component is now an index to an array of actual UV vec2s:
+	#			const vec2 texCoords[4] = vec2[4](
+	#				vec2(0.0f, 0.0f),
+	#				vec2(1.0f, 0.0f),
+	#				vec2(1.0f, 1.0f),
+	#				vec2(0.0f, 1.0f)
+	#			);
+	#		- y component is now an index to Texture2DArray layers
+	func add_uvs(id: int, shaded: bool, fliph: bool = false) -> void:
+		var idx = (((id - 1) * 2) + (1 * int(shaded)))
+		if not fliph:
+			uvs.append(Vector2(0, idx))
+			uvs.append(Vector2(1, idx))
+			uvs.append(Vector2(2, idx))
+			uvs.append(Vector2(3, idx))
+		else:
+			uvs.append(Vector2(1, idx))
+			uvs.append(Vector2(0, idx))
+			uvs.append(Vector2(3, idx))
+			uvs.append(Vector2(2, idx))
 
-func add_uvs(id: int, shaded: bool, fliph: bool = false):
-	var idx = (((id - 1) * 2) + (1 * int(shaded)))
-	var x = (idx % atlas.atlas_columns)
-	var y = (idx / atlas.atlas_columns)
-	if not fliph:
-		uvs.append(Vector2(
-			atlas.tex_div.x * x,
-			atlas.tex_div.y * y))
-		uvs.append(Vector2(
-			atlas.tex_div.x * x + atlas.tex_div.x,
-			atlas.tex_div.y * y))
-		uvs.append(Vector2(
-			atlas.tex_div.x * x + atlas.tex_div.x,
-			atlas.tex_div.y * y + atlas.tex_div.y))
-		uvs.append(Vector2(
-			atlas.tex_div.x * x,
-			atlas.tex_div.y * y + atlas.tex_div.y))
-	else:
-		uvs.append(Vector2(
-			atlas.tex_div.x * x + atlas.tex_div.x,
-			atlas.tex_div.y * y))
-		uvs.append(Vector2(
-			atlas.tex_div.x * x,
-			atlas.tex_div.y * y))
-		uvs.append(Vector2(
-			atlas.tex_div.x * x,
-			atlas.tex_div.y * y + atlas.tex_div.y))
-		uvs.append(Vector2(
-			atlas.tex_div.x * x + atlas.tex_div.x,
-			atlas.tex_div.y * y + atlas.tex_div.y))
+	func add_tris() -> void:
+		indices.append(face_count * 4 + 0)
+		indices.append(face_count * 4 + 1)
+		indices.append(face_count * 4 + 2)
+		indices.append(face_count * 4 + 0)
+		indices.append(face_count * 4 + 2)
+		indices.append(face_count * 4 + 3)
+		face_count += 1
 
-
-func add_tris():
-	indices.append(face_count * 4 + 0)
-	indices.append(face_count * 4 + 1)
-	indices.append(face_count * 4 + 2)
-	indices.append(face_count * 4 + 0)
-	indices.append(face_count * 4 + 2)
-	indices.append(face_count * 4 + 3)
-	face_count += 1
+	func get_mesh() -> ArrayMesh:
+		var mesh = ArrayMesh.new()
+		var array = []
+		array.resize(Mesh.ARRAY_MAX)
+		array[Mesh.ARRAY_VERTEX] = vertices
+		array[Mesh.ARRAY_INDEX] = indices
+		array[Mesh.ARRAY_TEX_UV] = uvs
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, array)
+		return mesh
 
 
 #-----------------------------------------------------
 # Door mesh generation
 #-----------------------------------------------------
 func get_door_mesh(axis: bool) -> ArrayMesh:
-	var mesh = ArrayMesh.new()
-
-	vertices = PackedVector3Array()
-	indices = PackedInt32Array()
-	uvs = PackedVector2Array()
-	face_count = 0
+	var builder := TileMeshBuilder.new()
 
 	# TODO: maybe rotate node itself instead?
 	if axis:
 		# EAST / WEST
-		vertices.append(Vector3(0,  0.5,  0.5))
-		vertices.append(Vector3(0,  0.5, -0.5))
-		vertices.append(Vector3(0, -0.5, -0.5))
-		vertices.append(Vector3(0, -0.5,  0.5))
-		add_tris()
-		add_uvs(L1Utils.door_id, true, true)
-		vertices.append(Vector3(0,  0.5, -0.5))
-		vertices.append(Vector3(0,  0.5,  0.5))
-		vertices.append(Vector3(0, -0.5,  0.5))
-		vertices.append(Vector3(0, -0.5, -0.5))
-		add_tris()
-		add_uvs(L1Utils.door_id, true)
+		builder.vertices.append(Vector3(0,  0.5,  0.5))
+		builder.vertices.append(Vector3(0,  0.5, -0.5))
+		builder.vertices.append(Vector3(0, -0.5, -0.5))
+		builder.vertices.append(Vector3(0, -0.5,  0.5))
+		builder.add_tris()
+		builder.add_uvs(L1Utils.door_id, true, true) # door handle stays on the same side
+		builder.vertices.append(Vector3(0,  0.5, -0.5))
+		builder.vertices.append(Vector3(0,  0.5,  0.5))
+		builder.vertices.append(Vector3(0, -0.5,  0.5))
+		builder.vertices.append(Vector3(0, -0.5, -0.5))
+		builder.add_tris()
+		builder.add_uvs(L1Utils.door_id, true)
 	else:
 		# SOUTH / NORTH
-		vertices.append(Vector3(-0.5,  0.5, 0))
-		vertices.append(Vector3( 0.5,  0.5, 0))
-		vertices.append(Vector3( 0.5, -0.5, 0))
-		vertices.append(Vector3(-0.5, -0.5, 0))
-		add_tris()
-		add_uvs(L1Utils.door_id, false)
-		vertices.append(Vector3( 0.5,  0.5, 0))
-		vertices.append(Vector3(-0.5,  0.5, 0))
-		vertices.append(Vector3(-0.5, -0.5, 0))
-		vertices.append(Vector3( 0.5, -0.5, 0))
-		add_tris()
-		add_uvs(L1Utils.door_id, false, true)
+		builder.vertices.append(Vector3(-0.5,  0.5, 0))
+		builder.vertices.append(Vector3( 0.5,  0.5, 0))
+		builder.vertices.append(Vector3( 0.5, -0.5, 0))
+		builder.vertices.append(Vector3(-0.5, -0.5, 0))
+		builder.add_tris()
+		builder.add_uvs(L1Utils.door_id, false)
+		builder.vertices.append(Vector3( 0.5,  0.5, 0))
+		builder.vertices.append(Vector3(-0.5,  0.5, 0))
+		builder.vertices.append(Vector3(-0.5, -0.5, 0))
+		builder.vertices.append(Vector3( 0.5, -0.5, 0))
+		builder.add_tris()
+		builder.add_uvs(L1Utils.door_id, false, true) # door handle stays on the same side
 
-	var array = []
-	array.resize(Mesh.ARRAY_MAX)
-	array[Mesh.ARRAY_VERTEX] = vertices
-	array[Mesh.ARRAY_INDEX] = indices
-	array[Mesh.ARRAY_TEX_UV] = uvs
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, array)
-
-	return mesh
+	return builder.get_mesh()
 
 #-----------------------------------------------------
 # TileGrid mesh generation
@@ -398,12 +365,7 @@ func is_adjecent_to_door(x: int, y: int) -> int:
 
 
 func get_tiles_mesh() -> ArrayMesh:
-	var mesh = ArrayMesh.new()
-
-	vertices = PackedVector3Array()
-	indices = PackedInt32Array()
-	uvs = PackedVector2Array()
-	face_count = 0
+	var builder := TileMeshBuilder.new()
 
 	# TODO: spawn pushwalls independently, will require loading layer2 from json
 	for y in range(grid.height()):
@@ -418,63 +380,56 @@ func get_tiles_mesh() -> ArrayMesh:
 
 			if Engine.is_editor_hint():
 				# TOP (editor only, makes it look nicer)
-				vertices.append(pos + Vector3(-0.5, 0.5, -0.5))
-				vertices.append(pos + Vector3( 0.5, 0.5, -0.5))
-				vertices.append(pos + Vector3( 0.5, 0.5,  0.5))
-				vertices.append(pos + Vector3(-0.5, 0.5,  0.5))
-				add_tris()
-				add_uvs(id, false)
+				builder.vertices.append(pos + Vector3(-0.5, 0.5, -0.5))
+				builder.vertices.append(pos + Vector3( 0.5, 0.5, -0.5))
+				builder.vertices.append(pos + Vector3( 0.5, 0.5,  0.5))
+				builder.vertices.append(pos + Vector3(-0.5, 0.5,  0.5))
+				builder.add_tris()
+				builder.add_uvs(id, false)
 
 			if is_air(x + 1, y):
 				# EAST
-				vertices.append(pos + Vector3(0.5,  0.5,  0.5))
-				vertices.append(pos + Vector3(0.5,  0.5, -0.5))
-				vertices.append(pos + Vector3(0.5, -0.5, -0.5))
-				vertices.append(pos + Vector3(0.5, -0.5,  0.5))
-				add_tris()
-				add_uvs(L1Utils.door_side_id if door_sides & FLAG_SOUTH else id, true)
+				builder.vertices.append(pos + Vector3(0.5,  0.5,  0.5))
+				builder.vertices.append(pos + Vector3(0.5,  0.5, -0.5))
+				builder.vertices.append(pos + Vector3(0.5, -0.5, -0.5))
+				builder.vertices.append(pos + Vector3(0.5, -0.5,  0.5))
+				builder.add_tris()
+				builder.add_uvs(L1Utils.door_side_id if door_sides & FLAG_SOUTH else id, true)
 
 			if is_air(x, y + 1):
 				# SOUTH
-				vertices.append(pos + Vector3(-0.5,  0.5, 0.5))
-				vertices.append(pos + Vector3( 0.5,  0.5, 0.5))
-				vertices.append(pos + Vector3( 0.5, -0.5, 0.5))
-				vertices.append(pos + Vector3(-0.5, -0.5, 0.5))
-				add_tris()
-				add_uvs(L1Utils.door_side_id if door_sides & FLAG_WEST else id, false)
+				builder.vertices.append(pos + Vector3(-0.5,  0.5, 0.5))
+				builder.vertices.append(pos + Vector3( 0.5,  0.5, 0.5))
+				builder.vertices.append(pos + Vector3( 0.5, -0.5, 0.5))
+				builder.vertices.append(pos + Vector3(-0.5, -0.5, 0.5))
+				builder.add_tris()
+				builder.add_uvs(L1Utils.door_side_id if door_sides & FLAG_WEST else id, false)
 
 			if is_air(x - 1, y):
 				# WEST
-				vertices.append(pos + Vector3(-0.5,  0.5, -0.5))
-				vertices.append(pos + Vector3(-0.5,  0.5,  0.5))
-				vertices.append(pos + Vector3(-0.5, -0.5,  0.5))
-				vertices.append(pos + Vector3(-0.5, -0.5, -0.5))
-				add_tris()
-				add_uvs(L1Utils.door_side_id if door_sides & FLAG_NORTH else id, true)
+				builder.vertices.append(pos + Vector3(-0.5,  0.5, -0.5))
+				builder.vertices.append(pos + Vector3(-0.5,  0.5,  0.5))
+				builder.vertices.append(pos + Vector3(-0.5, -0.5,  0.5))
+				builder.vertices.append(pos + Vector3(-0.5, -0.5, -0.5))
+				builder.add_tris()
+				builder.add_uvs(L1Utils.door_side_id if door_sides & FLAG_NORTH else id, true)
 
 			if is_air(x, y - 1):
 				# NORTH
-				vertices.append(pos + Vector3( 0.5,  0.5, -0.5))
-				vertices.append(pos + Vector3(-0.5,  0.5, -0.5))
-				vertices.append(pos + Vector3(-0.5, -0.5, -0.5))
-				vertices.append(pos + Vector3( 0.5, -0.5, -0.5))
-				add_tris()
-				add_uvs(L1Utils.door_side_id if door_sides & FLAG_EAST else id, false)
+				builder.vertices.append(pos + Vector3( 0.5,  0.5, -0.5))
+				builder.vertices.append(pos + Vector3(-0.5,  0.5, -0.5))
+				builder.vertices.append(pos + Vector3(-0.5, -0.5, -0.5))
+				builder.vertices.append(pos + Vector3( 0.5, -0.5, -0.5))
+				builder.add_tris()
+				builder.add_uvs(L1Utils.door_side_id if door_sides & FLAG_EAST else id, false)
 
 			if Engine.is_editor_hint():
 				# BOTTOM (editor only, makes it look nicer)
-				vertices.append(pos + Vector3(-0.5, -0.5,  0.5))
-				vertices.append(pos + Vector3( 0.5, -0.5,  0.5))
-				vertices.append(pos + Vector3( 0.5, -0.5, -0.5))
-				vertices.append(pos + Vector3(-0.5, -0.5, -0.5))
-				add_tris()
-				add_uvs(id, false)
+				builder.vertices.append(pos + Vector3(-0.5, -0.5,  0.5))
+				builder.vertices.append(pos + Vector3( 0.5, -0.5,  0.5))
+				builder.vertices.append(pos + Vector3( 0.5, -0.5, -0.5))
+				builder.vertices.append(pos + Vector3(-0.5, -0.5, -0.5))
+				builder.add_tris()
+				builder.add_uvs(id, false)
 
-	var array = []
-	array.resize(Mesh.ARRAY_MAX)
-	array[Mesh.ARRAY_VERTEX] = vertices
-	array[Mesh.ARRAY_INDEX] = indices
-	array[Mesh.ARRAY_TEX_UV] = uvs
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, array)
-
-	return mesh
+	return builder.get_mesh()

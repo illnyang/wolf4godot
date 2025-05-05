@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode cull_back, unshaded;
 
-uniform sampler2DArray texture_array : filter_nearest_mipmap_anisotropic;
+uniform sampler2DArray texture_array : source_color, filter_nearest_mipmap_anisotropic, repeat_enable;
 
 const vec2 texCoords[4] = vec2[4](
     vec2(0.0f, 0.0f),

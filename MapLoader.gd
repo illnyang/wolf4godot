@@ -98,24 +98,27 @@ var grid: MapGrid
 # NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
 #		By doing this, anything we generate doesn't get serialized into the tscn file.
 #		This is precisely what we want, online-only generation of resources from raw data.
+var root_node: Node3D
+
 func _ready() -> void:
 	grid = MapGrid.new(json_path)
 	update_tile_material()
 	spawn_layer1()
 	spawn_layer2()
+	add_child(root_node)
 
 
 #-----------------------------------------------------
 # Tile texture array & stub material generation
 #-----------------------------------------------------
 @export var texture_folder: String = "res://assets/walls/"
-var shader: Shader = preload("res://Tile.gdshader")
+var tile_shader: Shader = preload("res://Tile.gdshader")
 var tile_material: ShaderMaterial = null
 
 func update_tile_material() -> void:
 	if tile_material == null:
 		tile_material = ShaderMaterial.new()
-		tile_material.shader = shader
+		tile_material.shader = tile_shader
 	tile_material.set_shader_parameter("texture_array", _generate_texture_array(texture_folder))
 
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
@@ -145,45 +148,68 @@ static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 #-----------------------------------------------------
 # Layer1 (Tiles) spawning
 #-----------------------------------------------------
-var root_node: Node3D
+var pushwall_editor_overlay_mat: StandardMaterial3D = preload("res://PushWallEditorOverlayMat.tres")
 
 func spawn_layer1() -> void:
-	var tiles_mesh := MeshInstance3D.new()
-	tiles_mesh.name = "MapMesh"
-	tiles_mesh.mesh = get_tiles_mesh()
-	tiles_mesh.material_override = tile_material
+	var tiles_inst := MeshInstance3D.new()
+	tiles_inst.name = "Map"
+	tiles_inst.mesh = get_tiles_mesh()
+	tiles_inst.material_override = tile_material
 
-	var ceiling_mesh := MeshInstance3D.new()
-	ceiling_mesh.name = "CeilingMesh"
-	ceiling_mesh.position = Vector3(0, 0.5, 0)
-	ceiling_mesh.mesh = get_sector_mesh(grid.ceiling_color, true)
+	var ceiling_inst := MeshInstance3D.new()
+	ceiling_inst.name = "Ceiling"
+	ceiling_inst.position = Vector3(0, 0.5, 0)
+	ceiling_inst.mesh = get_sector_mesh(grid.ceiling_color, true)
 
-	var floor_mesh := MeshInstance3D.new()
-	floor_mesh.name = "FloorMesh"
-	floor_mesh.position = Vector3(0, -0.5, 0)
-	floor_mesh.mesh = get_sector_mesh(grid.floor_color, false)
+	var floor_inst := MeshInstance3D.new()
+	floor_inst.name = "Floor"
+	floor_inst.position = Vector3(0, -0.5, 0)
+	floor_inst.mesh = get_sector_mesh(grid.floor_color, false)
 
-	root_node = tiles_mesh
-	root_node.add_child(ceiling_mesh)
-	root_node.add_child(floor_mesh)
+	root_node = tiles_inst
+	root_node.add_child(ceiling_inst)
+	root_node.add_child(floor_inst)
 
-	# Spawn Doors
-	var door_ew: ArrayMesh = get_door_mesh(true)
-	var door_ns: ArrayMesh = get_door_mesh(false)
+	# Spawn Doors and PushWalls
+	var pushwall_meshes: Dictionary = {}
+	var door_ew_mesh: ArrayMesh = get_door_mesh(true)
+	var door_ns_mesh: ArrayMesh = get_door_mesh(false)
 	for y in range(grid.height()):
 		for x in range(grid.width()):
-			var id = grid.tile_at(x, y)
-			if L1Utils.is_door(id) or L1Utils.is_elevator_door(id):
-				var door_axis: bool = L1Utils.get_axis(id)
-				var door_mesh := MeshInstance3D.new()
-				door_mesh.name = "Door"
-				door_mesh.mesh = door_ew if door_axis else door_ns
-				door_mesh.material_override = tile_material
-				door_mesh.position = Vector3(x + 0.5, 0, y + 0.5)
-				door_mesh.rotation_degrees.y += -90 * float(door_axis)
-				root_node.add_child(door_mesh)
+			var tile_id = grid.tile_at(x, y)
+			var thing_id = grid.thing_at(x, y)
 
-	add_child(root_node)
+			if L1Utils.is_door(tile_id) or L1Utils.is_elevator_door(tile_id):
+				var door_axis: bool = L1Utils.get_axis(tile_id)
+				var door_inst := MeshInstance3D.new()
+
+				door_inst.name = "Door"
+				door_inst.mesh = door_ew_mesh if door_axis else door_ns_mesh
+				door_inst.material_override = tile_material
+				door_inst.position = Vector3(x + 0.5, 0, y + 0.5)
+				door_inst.rotation_degrees.y += -90 * float(door_axis)
+
+				root_node.add_child(door_inst)
+
+			elif L2Utils.is_push_wall(thing_id) and L1Utils.is_wall(tile_id):
+				var pushwall_mesh: ArrayMesh = pushwall_meshes.get(tile_id)
+
+				if pushwall_mesh == null:
+					pushwall_mesh = get_pushwall_mesh(tile_id)
+					pushwall_meshes[tile_id] = pushwall_mesh
+
+				var pushwall_inst := MeshInstance3D.new()
+				pushwall_inst.name = "PushWall"
+				pushwall_inst.mesh = pushwall_mesh
+				pushwall_inst.material_override = tile_material
+
+				# Mark pushwalls in the editor
+				if Engine.is_editor_hint():
+					pushwall_inst.material_overlay = pushwall_editor_overlay_mat
+
+				pushwall_inst.position = Vector3(x + 0.5, 0, y + 0.5)
+
+				root_node.add_child(pushwall_inst)
 
 
 #-----------------------------------------------------
@@ -279,7 +305,7 @@ class TileMeshBuilder:
 
 
 #-----------------------------------------------------
-# Door mesh generation
+# Door mesh generation (two quads)
 #-----------------------------------------------------
 func get_door_mesh(axis: bool) -> ArrayMesh:
 	var builder := TileMeshBuilder.new()
@@ -296,6 +322,66 @@ func get_door_mesh(axis: bool) -> ArrayMesh:
 	builder.add_tris()
 	builder.add_uvs(L1Utils.door_id, axis, true) # door handle stays on the same side
 	return builder.get_mesh()
+
+
+#-----------------------------------------------------
+# PushWall mesh generation (cube)
+#-----------------------------------------------------
+func get_pushwall_mesh(id: int) -> ArrayMesh:
+	var builder := TileMeshBuilder.new()
+
+	if Engine.is_editor_hint():
+		# TOP (editor only, makes it look nicer)
+		builder.vertices.append(Vector3(-0.5, 0.5, -0.5))
+		builder.vertices.append(Vector3( 0.5, 0.5, -0.5))
+		builder.vertices.append(Vector3( 0.5, 0.5,  0.5))
+		builder.vertices.append(Vector3(-0.5, 0.5,  0.5))
+		builder.add_tris()
+		builder.add_uvs(id, false)
+
+	# EAST
+	builder.vertices.append(Vector3(0.5,  0.5,  0.5))
+	builder.vertices.append(Vector3(0.5,  0.5, -0.5))
+	builder.vertices.append(Vector3(0.5, -0.5, -0.5))
+	builder.vertices.append(Vector3(0.5, -0.5,  0.5))
+	builder.add_tris()
+	builder.add_uvs(id, true)
+
+	# SOUTH
+	builder.vertices.append(Vector3(-0.5,  0.5, 0.5))
+	builder.vertices.append(Vector3( 0.5,  0.5, 0.5))
+	builder.vertices.append(Vector3( 0.5, -0.5, 0.5))
+	builder.vertices.append(Vector3(-0.5, -0.5, 0.5))
+	builder.add_tris()
+	builder.add_uvs(id, false)
+
+	# WEST
+	builder.vertices.append(Vector3(-0.5,  0.5, -0.5))
+	builder.vertices.append(Vector3(-0.5,  0.5,  0.5))
+	builder.vertices.append(Vector3(-0.5, -0.5,  0.5))
+	builder.vertices.append(Vector3(-0.5, -0.5, -0.5))
+	builder.add_tris()
+	builder.add_uvs(id, true)
+
+	# NORTH
+	builder.vertices.append(Vector3( 0.5,  0.5, -0.5))
+	builder.vertices.append(Vector3(-0.5,  0.5, -0.5))
+	builder.vertices.append(Vector3(-0.5, -0.5, -0.5))
+	builder.vertices.append(Vector3( 0.5, -0.5, -0.5))
+	builder.add_tris()
+	builder.add_uvs(id, false)
+
+	if Engine.is_editor_hint():
+		# BOTTOM (editor only, makes it look nicer)
+		builder.vertices.append(Vector3(-0.5, -0.5,  0.5))
+		builder.vertices.append(Vector3( 0.5, -0.5,  0.5))
+		builder.vertices.append(Vector3( 0.5, -0.5, -0.5))
+		builder.vertices.append(Vector3(-0.5, -0.5, -0.5))
+		builder.add_tris()
+		builder.add_uvs(id, false)
+
+	return builder.get_mesh()
+
 
 #-----------------------------------------------------
 # TileGrid mesh generation
@@ -345,7 +431,6 @@ func is_adjecent_to_door(x: int, y: int) -> int:
 func get_tiles_mesh() -> ArrayMesh:
 	var builder := TileMeshBuilder.new()
 
-	# TODO: spawn pushwalls independently, will require loading layer2 from json
 	for y in range(grid.height()):
 		for x in range(grid.width()):
 			if is_air(x, y):

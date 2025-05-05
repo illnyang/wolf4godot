@@ -7,4 +7,4 @@ script = ExtResource("1_xhfnw")
 
 [node name="Camera3D" type="Camera3D" parent="."]
 current = true
-fov = 72.0
+fov = 61.0

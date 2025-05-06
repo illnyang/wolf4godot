@@ -250,7 +250,7 @@ func spawn_layer2() -> void:
 				sprite.axis = 2 # Z-Axis
 				sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 				sprite.transparent = true
-				sprite.double_sided = true
+				sprite.double_sided = false
 				sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 				root_node.add_child(sprite)

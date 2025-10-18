@@ -44,3 +44,4 @@ func _on_vp_sized_changed():
 	vp.content_scale_size = Vector2(new_width, new_height)
 
 	guard = false
+	

@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=4 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="Script" uid="uid://dd1lvixvfkawk" path="res://SceneRoot.gd" id="1_55onw"]
 [ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://MapLoader.gd" id="3_en2fo"]
+[ext_resource type="Script" uid="uid://bx10ohnw61ckr" path="res://SoundPlayer.gd" id="3_x42b1"]
 
 [node name="SceneRoot" type="Node3D"]
 physics_interpolation_mode = 1
@@ -9,3 +10,6 @@ script = ExtResource("1_55onw")
 
 [node name="MapLoader" type="Node3D" parent="."]
 script = ExtResource("3_en2fo")
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
+script = ExtResource("3_x42b1")

@@ -1,0 +1,14 @@
+[remap]
+
+importer="image"
+type="Image"
+uid="uid://bgspp633t882u"
+path="res://.godot/imported/11_shaded.png-f5be3db78307936ec11d88d914d393b1.image"
+
+[deps]
+
+source_file="res://assets/wallsetc/walls/11_shaded.png"
+dest_files=["res://.godot/imported/11_shaded.png-f5be3db78307936ec11d88d914d393b1.image"]
+
+[params]
+

@@ -1,0 +1,14 @@
+[remap]
+
+importer="image"
+type="Image"
+uid="uid://cpb7nnhofd4bm"
+path="res://.godot/imported/42.png-64cc2eb0eb22da71078e87979d0c0c38.image"
+
+[deps]
+
+source_file="res://assets/wallsetc/walls/42.png"
+dest_files=["res://.godot/imported/42.png-64cc2eb0eb22da71078e87979d0c0c38.image"]
+
+[params]
+

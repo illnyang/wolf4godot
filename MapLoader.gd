@@ -98,7 +98,7 @@ class MapGrid:
 		return _thingGrid[y * height() + x]
 
 
-@export var json_path : String = "res://assets/maps/00_Wolf1 Map1.json"
+@export var json_path : String = "user://assets/maps/json/00_Wolf1 Map1.json"
 var grid: MapGrid
 
 # NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
@@ -107,17 +107,22 @@ var grid: MapGrid
 var root_node: Node3D
 
 func _ready() -> void:
+	# Wait for the autoload extractor to finish
+	if not AssetExtractor.extraction_complete:
+		await AssetExtractor.extraction_finished
+	
+	print("MapLoader: Loading map from: ", json_path)  # ADD THIS LINE
 	grid = MapGrid.new(json_path)
+	print("MapLoader: Map name: ", grid.map_name) 
 	update_tile_material()
 	spawn_layer1()
 	spawn_layer2()
 	add_child(root_node)
-
-
+	
 #-----------------------------------------------------
 # Tile texture array & stub material generation
 #-----------------------------------------------------
-@export var tile_texture_folder: String = "res://assets/walls/"
+@export var tile_texture_folder: String = "user://assets/walls/"
 var tile_shader: Shader = preload("res://Tile.gdshader")
 var tile_material: ShaderMaterial = null
 
@@ -127,29 +132,66 @@ func update_tile_material() -> void:
 		tile_material.shader = tile_shader
 	tile_material.set_shader_parameter("texture_array", _generate_texture_array(tile_texture_folder))
 
+#static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
+	#const tex_size: int = 64
+#
+	#var files = ResourceLoader.list_directory(texture_folder)
+	#var images = []
+#
+	## Load all valid texture files (assumes id-prefixed filenames cuz sorting)
+	#for file in files:
+		#if file.ends_with(".png"):
+			#var image: Image = Image.load_from_file(texture_folder + file)
+#
+			#if not image.has_mipmaps():
+				#image.generate_mipmaps()
+#
+			#assert(image.get_width() == tex_size and image.get_height() == tex_size)
+			#images.append(image)
+#
+	#assert(images.size() != 0)
+#
+	#var result = Texture2DArray.new()
+	#result.create_from_images(images)
+	#return result
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	const tex_size: int = 64
 
-	var files = ResourceLoader.list_directory(texture_folder)
+	# USE DirAccess INSTEAD OF ResourceLoader for user:// paths
+	var dir = DirAccess.open(texture_folder)
+	if dir == null:
+		push_error("Cannot open directory: " + texture_folder)
+		return null
+	
+	var files: Array[String] = []
+	dir.list_dir_begin()
+	var file_name = dir.get_next()
+	while file_name != "":
+		if file_name.ends_with(".png"):
+			files.append(file_name)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	
+	# Sort files to maintain order
+	files.sort()
+	
 	var images = []
 
-	# Load all valid texture files (assumes id-prefixed filenames cuz sorting)
+	# Load all valid texture files
 	for file in files:
-		if file.ends_with(".png"):
-			var image: Image = load(texture_folder + file)
+		var image: Image = Image.load_from_file(texture_folder + file)
 
-			if not image.has_mipmaps():
-				image.generate_mipmaps()
+		if not image.has_mipmaps():
+			image.generate_mipmaps()
 
-			assert(image.get_width() == tex_size and image.get_height() == tex_size)
-			images.append(image)
+		assert(image.get_width() == tex_size and image.get_height() == tex_size)
+		images.append(image)
 
 	assert(images.size() != 0)
 
 	var result = Texture2DArray.new()
 	result.create_from_images(images)
 	return result
-
 
 #-----------------------------------------------------
 # Layer1 (Tiles) spawning
@@ -220,7 +262,7 @@ func spawn_layer1() -> void:
 #-----------------------------------------------------
 # Layer2 (Things) spawning
 #-----------------------------------------------------
-@export var sprite_texture_folder: String = "res://assets/sprites/"
+@export var sprite_texture_folder: String = "user://assets/sprites/"
 var player_scene = preload("res://Player.tscn")
 
 func spawn_layer2() -> void:
@@ -244,7 +286,16 @@ func spawn_layer2() -> void:
 				var sprite: Sprite3D = Sprite3D.new()
 
 				sprite.position = Vector3(x + 0.5, 0, y + 0.5)
-				sprite.texture = load("%sSPR_STAT_%d.png" % [sprite_texture_folder, static_idx])
+				
+				# FIXED: Load texture from user:// path correctly
+				var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, static_idx]
+				var img = Image.load_from_file(sprite_path)
+				if img != null:
+					sprite.texture = ImageTexture.create_from_image(img)
+				else:
+					push_error("Failed to load sprite: " + sprite_path)
+					continue
+				
 				sprite.centered = true
 				sprite.pixel_size = 0.015
 				sprite.axis = 2 # Z-Axis

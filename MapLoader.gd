@@ -97,7 +97,6 @@ class MapGrid:
 	func thing_at(x: int, y: int) -> int:
 		return _thingGrid[y * height() + x]
 
-
 @export var json_path : String = "user://assets/maps/json/00_Wolf1 Map1.json"
 var grid: MapGrid
 
@@ -107,11 +106,10 @@ var grid: MapGrid
 var root_node: Node3D
 
 func _ready() -> void:
-	# Wait for the autoload extractor to finish
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
-	print("MapLoader: Loading map from: ", json_path)  # ADD THIS LINE
+	print("MapLoader: Loading map from: ", json_path)
 	grid = MapGrid.new(json_path)
 	print("MapLoader: Map name: ", grid.map_name) 
 	update_tile_material()
@@ -132,28 +130,6 @@ func update_tile_material() -> void:
 		tile_material.shader = tile_shader
 	tile_material.set_shader_parameter("texture_array", _generate_texture_array(tile_texture_folder))
 
-#static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
-	#const tex_size: int = 64
-#
-	#var files = ResourceLoader.list_directory(texture_folder)
-	#var images = []
-#
-	## Load all valid texture files (assumes id-prefixed filenames cuz sorting)
-	#for file in files:
-		#if file.ends_with(".png"):
-			#var image: Image = Image.load_from_file(texture_folder + file)
-#
-			#if not image.has_mipmaps():
-				#image.generate_mipmaps()
-#
-			#assert(image.get_width() == tex_size and image.get_height() == tex_size)
-			#images.append(image)
-#
-	#assert(images.size() != 0)
-#
-	#var result = Texture2DArray.new()
-	#result.create_from_images(images)
-	#return result
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	const tex_size: int = 64
 
@@ -172,7 +148,6 @@ static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	
-	# Sort files to maintain order
 	files.sort()
 	
 	var images = []
@@ -287,7 +262,6 @@ func spawn_layer2() -> void:
 
 				sprite.position = Vector3(x + 0.5, 0, y + 0.5)
 				
-				# FIXED: Load texture from user:// path correctly
 				var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, static_idx]
 				var img = Image.load_from_file(sprite_path)
 				if img != null:

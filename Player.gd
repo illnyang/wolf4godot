@@ -1,7 +1,7 @@
 class_name Player
 extends Node3D
 
-@export var map_loader: MapLoader   # Editor-assignable MapLoader reference
+@export var map_loader: MapLoader   
 @export var radius: float = 0.28
 @export var skin: float = 0.001
 
@@ -32,7 +32,6 @@ func _ready() -> void:
 		grid = map_loader.grid
 	else:
 		push_warning("Player: MapLoader not found; collisions disabled.")
-
 	_update_tile_indices()
 
 
@@ -50,9 +49,9 @@ func _physics_process(delta: float) -> void:
 		move_dir -= cam.global_transform.basis.z
 	if Input.is_action_pressed("move_backward"):
 		move_dir += cam.global_transform.basis.z
-	if Input.is_action_pressed("move_right"):
+	if Input.is_action_pressed("ui_right"):
 		move_dir += cam.global_transform.basis.x
-	if Input.is_action_pressed("move_left"):
+	if Input.is_action_pressed("ui_left"):
 		move_dir -= cam.global_transform.basis.x
 
 	# flatten to XZ, normalize if needed
@@ -62,7 +61,6 @@ func _physics_process(delta: float) -> void:
 
 	var displacement := move_dir * SPEED * delta
 
-	# vertical (fly) controls
 	var vertical_delta := 0.0
 	if Input.is_action_pressed("fly_up"):
 		vertical_delta += SPEED * delta

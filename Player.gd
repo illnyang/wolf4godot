@@ -1,5 +1,5 @@
 class_name Player
-extends Node3D
+extends CharacterBody3D
 
 @export var map_loader: MapLoader   
 @export var radius: float = 0.28
@@ -15,8 +15,16 @@ var tiley: int = 0
 
 @onready var cam: Camera3D = $Camera3D
 
+signal hp_changed(current_hp: int, max_hp: int)
+signal died
+
+@export var max_hp: int = 100
+var current_hp: int
 
 func _ready() -> void:
+	current_hp = max_hp
+	emit_signal("hp_changed", current_hp, max_hp)
+	
 	# If not assigned in the editor, find MapLoader parent automatically
 	if map_loader == null:
 		var p = get_parent()
@@ -25,15 +33,13 @@ func _ready() -> void:
 				map_loader = p
 				break
 			p = p.get_parent()
- 
-
 
 	if map_loader:
 		grid = map_loader.grid
 	else:
 		push_warning("Player: MapLoader not found; collisions disabled.")
+	
 	_update_tile_indices()
-
 
 func _physics_process(delta: float) -> void:
 	# rotation (yaw)
@@ -135,10 +141,36 @@ func _attempt_move(offset_3d: Vector3, vertical_delta: float) -> void:
 	position.x = new_x
 	position.z = new_z
 
+func take_damage(amount: int) -> void:
+	if current_hp <= 0:
+		return
+
+	current_hp -= amount
+	current_hp = max(current_hp, 0)
+
+	emit_signal("hp_changed", current_hp, max_hp)
+
+	if current_hp == 0:
+		die()
+
+func heal(amount: int) -> void:
+	if current_hp <= 0:
+		return
+
+	current_hp += amount
+	current_hp = min(current_hp, max_hp)
+
+	emit_signal("hp_changed", current_hp, max_hp)
+
 
 func _update_tile_indices() -> void:
 	tilex = int(floor(position.x))
 	tiley = int(floor(position.z))
+
+func die() -> void:
+	print("Player died")
+	emit_signal("died")
+	queue_free() # or respawn later
 
 
 func sign(v: float) -> int:

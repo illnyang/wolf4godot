@@ -19,7 +19,7 @@ const POS_FACE_Y = 4
 const POS_WEAPON_X = 256  # Weapon icon
 const POS_KEYS_X = 240    # Keys
 const POS_KEYS_Y = 4
-const POS_NUMBER_Y = 24   # Y offset for numbers within status bar
+const POS_NUMBER_Y = 16   # Y offset for numbers within status bar
 
 # Scale factor for rendering (original was 320x200, we'll scale up)
 var scale_factor: float = 2.0

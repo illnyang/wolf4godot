@@ -1,12 +1,15 @@
-[gd_scene load_steps=4 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=6 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="Script" uid="uid://dd1lvixvfkawk" path="res://SceneRoot.gd" id="1_55onw"]
+[ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://Player.tscn" id="2_w4mwi"]
 [ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://MapLoader.gd" id="3_en2fo"]
 [ext_resource type="Script" uid="uid://bx10ohnw61ckr" path="res://SoundPlayer.gd" id="3_x42b1"]
+[ext_resource type="Script" uid="uid://bhfhvfq76em8u" path="res://HUD.gd" id="4_x42b1"]
 
 [node name="SceneRoot" type="Node3D"]
 physics_interpolation_mode = 1
 script = ExtResource("1_55onw")
+player_scene = ExtResource("2_w4mwi")
 
 [node name="MapLoader" type="Node3D" parent="."]
 script = ExtResource("3_en2fo")
@@ -14,3 +17,6 @@ json_path = "user://assets/maps/json/00_Tunnels 1.json"
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 script = ExtResource("3_x42b1")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+script = ExtResource("4_x42b1")

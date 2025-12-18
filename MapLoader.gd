@@ -97,7 +97,7 @@ class MapGrid:
 	func thing_at(x: int, y: int) -> int:
 		return _thingGrid[y * height() + x]
 
-@export var json_path : String = "user://assets/maps/json/00_Wolf1 Map1.json"
+@export var json_path : String = "user://assets/wolf3d/maps/json/00_Wolf1 Map1.json"  # Fallback only
 var grid: MapGrid
 
 # NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
@@ -109,18 +109,20 @@ func _ready() -> void:
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
-	print("MapLoader: Loading map from: ", json_path)
-	grid = MapGrid.new(json_path)
+	# Use selected map from GameState if available
+	var map_path = GameState.selected_map_path if GameState.selected_map_path != "" else json_path
+	print("MapLoader: Loading map from: ", map_path)
+	grid = MapGrid.new(map_path)
 	print("MapLoader: Map name: ", grid.map_name) 
 	update_tile_material()
 	spawn_layer1()
 	spawn_layer2()
 	add_child(root_node)
 	
-#-----------------------------------------------------
-# Tile texture array & stub material generation
-#-----------------------------------------------------
-@export var tile_texture_folder: String = "user://assets/walls/"
+# Asset paths - computed dynamically based on selected game
+func _get_tile_texture_folder() -> String:
+	return "user://assets/%s/walls/" % GameState.selected_game
+
 var tile_shader: Shader = preload("res://Tile.gdshader")
 var tile_material: ShaderMaterial = null
 
@@ -128,7 +130,7 @@ func update_tile_material() -> void:
 	if tile_material == null:
 		tile_material = ShaderMaterial.new()
 		tile_material.shader = tile_shader
-	tile_material.set_shader_parameter("texture_array", _generate_texture_array(tile_texture_folder))
+	tile_material.set_shader_parameter("texture_array", _generate_texture_array(_get_tile_texture_folder()))
 
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	const tex_size: int = 64
@@ -234,10 +236,9 @@ func spawn_layer1() -> void:
 				root_node.add_child(pushwall_inst)
 
 
-#-----------------------------------------------------
-# Layer2 (Things) spawning
-#-----------------------------------------------------
-@export var sprite_texture_folder: String = "user://assets/sprites/"
+func _get_sprite_texture_folder() -> String:
+	return "user://assets/%s/sprites/" % GameState.selected_game
+
 var player_scene = preload("res://Player.tscn")
 
 func spawn_layer2() -> void:
@@ -262,7 +263,7 @@ func spawn_layer2() -> void:
 
 				sprite.position = Vector3(x + 0.5, 0, y + 0.5)
 				
-				var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, static_idx]
+				var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), static_idx]
 				var img = Image.load_from_file(sprite_path)
 				if img != null:
 					sprite.texture = ImageTexture.create_from_image(img)

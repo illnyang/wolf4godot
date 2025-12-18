@@ -141,37 +141,20 @@ func _attempt_move(offset_3d: Vector3, vertical_delta: float) -> void:
 	position.x = new_x
 	position.z = new_z
 
-func take_damage(amount: int) -> void:
-	if current_hp <= 0:
-		return
-
-	current_hp -= amount
-	current_hp = max(current_hp, 0)
-
-	emit_signal("hp_changed", current_hp, max_hp)
-
-	if current_hp == 0:
-		die()
-
-func heal(amount: int) -> void:
-	if current_hp <= 0:
-		return
-
-	current_hp += amount
-	current_hp = min(current_hp, max_hp)
-
-	emit_signal("hp_changed", current_hp, max_hp)
-
-
 func _update_tile_indices() -> void:
 	tilex = int(floor(position.x))
 	tiley = int(floor(position.z))
 
+func take_damage(amount: int) -> void:
+	GameState.take_damage(amount)
+
+func heal(amount: int) -> void:
+	GameState.heal(amount)
+	
 func die() -> void:
 	print("Player died")
 	emit_signal("died")
 	queue_free() # or respawn later
-
 
 func sign(v: float) -> int:
 	return -1 if v < 0 else 1

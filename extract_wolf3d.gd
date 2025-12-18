@@ -16,9 +16,43 @@ static func decode_s16(data: PackedByteArray, offset: int) -> int:
 	return unsigned
 
 
-var wolf3d_path = "res://data/"
-var output_path = "user://assets/"  # KEEP THIS for maps
-var texture_output_path = "user://assets/"
+# Game configurations
+enum GameType { WOLF3D, SOD, BLAKE_STONE }
+
+var game_configs = {
+	GameType.WOLF3D: {
+		"name": "wolf3d",
+		"data_path": "res://data/wolf3d/",
+		"extension": ".WL6",
+		"output": "user://assets/wolf3d/"
+	},
+	GameType.SOD: {
+		"name": "sod",
+		"data_path": "res://data/sod/",
+		"extension": ".SOD",
+		"output": "user://assets/sod/"
+	},
+	GameType.BLAKE_STONE: {
+		"name": "blake_stone",
+		"data_path": "res://data/blake_stone/",
+		"extension": ".BS6",
+		"output": "user://assets/blake_stone/"
+	}
+}
+
+# Current extraction paths (set during extraction)
+var current_data_path: String = ""
+var current_extension: String = ""
+var current_output_path: String = ""
+
+# Legacy variable aliases (for backward compatibility with Blake Stone code)
+var output_path: String:
+	get: return current_output_path
+var texture_output_path: String:
+	get: return current_output_path
+
+# Available games after detection
+var available_games: Array[GameType] = []
 
 var extraction_complete = false
 
@@ -64,23 +98,59 @@ var WOLF_PALETTE = [
 func _ready():
 	print("=== AssetExtractor Starting ===")
 	
-	# DEBUG CODE AT THE TOP - RUNS FIRST!
-	print("========== USER PATH DEBUG ==========")
-	print("user:// maps to: ", OS.get_user_data_dir())
-	print("Full sprite path: ", ProjectSettings.globalize_path("user://assets/sprites/"))
-	print("=====================================")
+	# Detect available games
+	_detect_available_games()
 	
-	if already_extracted():
-		print("Assets already extracted, skipping...")
-		extraction_complete = true
-		extraction_finished.emit()
-		return
+	# Extract all available games
+	for game_type in available_games:
+		var config = game_configs[game_type]
+		if not _already_extracted_game(config.output):
+			print("Extracting %s assets..." % config.name)
+			_extract_game(game_type)
+		else:
+			print("%s assets already extracted, skipping..." % config.name)
 	
-	print("Extracting assets from res://data/...")
-	extract_all_assets()
 	print("=== Extraction Complete ===")
 	extraction_complete = true
 	extraction_finished.emit()
+
+func _detect_available_games() -> void:
+	available_games.clear()
+	for game_type in game_configs:
+		var config = game_configs[game_type]
+		var vswap_path = config.data_path + "VSWAP" + config.extension
+		if FileAccess.file_exists(vswap_path):
+			print("Found %s data files" % config.name.to_upper())
+			available_games.append(game_type)
+	
+	if available_games.is_empty():
+		push_warning("No game data found! Please add Wolf3D or SOD files.")
+
+func _already_extracted_game(output: String) -> bool:
+	var map_dir = DirAccess.open(output + "maps/json/")
+	if map_dir == null:
+		return false
+	var wall_dir = DirAccess.open(output + "walls/")
+	if wall_dir == null:
+		return false
+	return true
+
+func _extract_game(game_type: GameType) -> void:
+	var config = game_configs[game_type]
+	current_data_path = config.data_path
+	current_extension = config.extension
+	current_output_path = config.output
+	
+	DirAccess.make_dir_recursive_absolute(current_output_path + "maps/json")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "maps/thumbs")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "walls")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "sprites")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "sounds")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "music")
+	
+	extract_maps()
+	extract_vswap()
+	extract_audio()  # Extract IMF music from AUDIOT
 	
 #func already_extracted() -> bool:
 	#var map_dir = DirAccess.open(output_path + "maps/json/")
@@ -274,8 +344,8 @@ func map_expand(raw_bytes: PackedByteArray) -> PackedInt32Array:
 func extract_maps():
 	print("Extracting maps...")
 	
-	var maphead_path = wolf3d_path + "MAPHEAD.WL6"
-	var gamemaps_path = wolf3d_path + "GAMEMAPS.WL6"
+	var maphead_path = current_data_path + "MAPHEAD" + current_extension
+	var gamemaps_path = current_data_path + "GAMEMAPS" + current_extension
 	
 	var maphead = FileAccess.open(maphead_path, FileAccess.READ)
 	if maphead == null:
@@ -349,7 +419,7 @@ func extract_maps():
 		
 		var json_string = JSON.stringify(map_data, "\t")
 		var json_file = FileAccess.open(
-			"%smaps/json/%02d_%s.json" % [output_path, level, map_name],
+			"%smaps/json/%02d_%s.json" % [current_output_path, level, map_name],
 			FileAccess.WRITE
 		)
 		if json_file:
@@ -367,7 +437,7 @@ func extract_maps():
 func extract_vswap():
 	print("Extracting VSWAP assets...")
 	
-	var vswap_path = wolf3d_path + "VSWAP.WL6"
+	var vswap_path = current_data_path + "VSWAP" + current_extension
 	var vswap = FileAccess.open(vswap_path, FileAccess.READ)
 	if vswap == null:
 		push_error("Cannot open " + vswap_path)
@@ -422,6 +492,20 @@ func extract_vswap():
 		vswap.seek(offset)
 		var sprite_data = vswap.get_buffer(length)
 		save_sprite(sprite_data, i - sprite_start)
+	
+	# Extract digitized sounds (chunks sound_start to end)
+	var num_sounds = num_chunks - sound_start
+	print("-> Extracting %d sounds..." % num_sounds)
+	for i in range(sound_start, num_chunks):
+		var offset = chunk_offsets[i]
+		var length = chunk_lengths[i]
+		
+		if length == 0:
+			continue
+		
+		vswap.seek(offset)
+		var sound_data = vswap.get_buffer(length)
+		save_sound_as_wav(sound_data, i - sound_start)
 	
 	vswap.close()
 	print("-> VSWAP extraction complete")
@@ -487,7 +571,7 @@ func save_wall_texture(data: PackedByteArray, texture_id: int, num_digits: int):
 	
 	# Format: 00.png, 00_shaded.png, 01.png, 01_shaded.png, etc.
 	var format_str = "%0" + str(num_digits) + "d"
-	var filename = "%swalls/" % texture_output_path + format_str % wall_idx
+	var filename = "%swalls/" % current_output_path + format_str % wall_idx
 	filename += "_shaded.png" if is_shaded else ".png"
 	
 	img.save_png(filename)
@@ -577,11 +661,11 @@ func save_sprite(data: PackedByteArray, sprite_id: int):
 	
 	var filename
 	if sprite_id == 0:
-		filename = "%ssprites/SPR_STAT_MINUS2.png" % texture_output_path
+		filename = "%ssprites/SPR_STAT_MINUS2.png" % current_output_path
 	elif sprite_id == 1:
-		filename = "%ssprites/SPR_STAT_MINUS1.png" % texture_output_path
+		filename = "%ssprites/SPR_STAT_MINUS1.png" % current_output_path
 	else:
-		filename = "%ssprites/SPR_STAT_%d.png" % [texture_output_path, sprite_id - 2]
+		filename = "%ssprites/SPR_STAT_%d.png" % [current_output_path, sprite_id - 2]
 	print("    Saving to: ", filename)
 	var err = img.save_png(filename)
 	if err != OK:
@@ -608,7 +692,7 @@ func generate_thumbnail(layer1: PackedInt32Array, layer2: PackedInt32Array, leve
 			
 			img.set_pixel(x, y, color)
 	
-	img.save_png("%smaps/thumbs/%02d_%s.png" % [output_path, level, map_name])
+	img.save_png("%smaps/thumbs/%02d_%s.png" % [current_output_path, level, map_name])
 
 
 func tile_to_color(tile: int) -> Color:
@@ -622,3 +706,220 @@ func tile_to_color(tile: int) -> Color:
 		return Color(1, 0, 0)
 	else:
 		return Color(0.5, 0.5, 0.5)
+
+
+#-----------------------------------------------------
+# Sound Extraction - Convert raw PCM to WAV
+#-----------------------------------------------------
+func save_sound_as_wav(data: PackedByteArray, sound_id: int) -> void:
+	if data.size() == 0:
+		return
+	
+	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, ~7000 Hz
+	const SAMPLE_RATE = 7000
+	const BITS_PER_SAMPLE = 8
+	const NUM_CHANNELS = 1
+	
+	var filename = "%ssounds/DIGI_%03d.wav" % [current_output_path, sound_id]
+	var file = FileAccess.open(filename, FileAccess.WRITE)
+	if file == null:
+		push_error("Cannot create sound file: " + filename)
+		return
+	
+	# WAV file header (44 bytes)
+	var data_size = data.size()
+	var file_size = 36 + data_size
+	
+	# RIFF header
+	file.store_buffer("RIFF".to_ascii_buffer())
+	file.store_32(file_size)
+	file.store_buffer("WAVE".to_ascii_buffer())
+	
+	# fmt sub-chunk
+	file.store_buffer("fmt ".to_ascii_buffer())
+	file.store_32(16)  # Sub-chunk size
+	file.store_16(1)   # Audio format (1 = PCM)
+	file.store_16(NUM_CHANNELS)
+	file.store_32(SAMPLE_RATE)
+	file.store_32(SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8)  # Byte rate
+	file.store_16(NUM_CHANNELS * BITS_PER_SAMPLE / 8)  # Block align
+	file.store_16(BITS_PER_SAMPLE)
+	
+	# data sub-chunk
+	file.store_buffer("data".to_ascii_buffer())
+	file.store_32(data_size)
+	
+	# Wolf3D uses unsigned 8-bit PCM, WAV expects unsigned 8-bit
+	# So we can write the data directly
+	file.store_buffer(data)
+	
+	file.close()
+
+
+#-----------------------------------------------------
+# Audio Extraction - Extract IMF music from AUDIOT
+#-----------------------------------------------------
+# Wolf3D audio structure:
+# - AUDIOHED contains 32-bit offsets to chunks
+# - AUDIOT contains the actual audio data
+# - Chunks are: PC speaker sounds, AdLib sounds, then AdLib music
+# - Music is in IMF format (OPL2 register writes + timing)
+
+# Wolf3D music track names (AUDIOWL6.H)
+const MUSIC_NAMES = [
+	"CORNER", "DUNGEON", "WARMARCH", "GETTHEM", "HEADACHE",
+	"HITLWLTZ", "INTROCW3", "NAZI_NOR", "NAZI_OMI", "POW",
+	"SALUTE", "SEARCHN", "SUSPENSE", "VICTORS", "WONDERIN",
+	"FUNKYOU", "ENDLEVEL", "GOINGAFT", "PREGNANT", "ULTIMATE",
+	"NAZI_RAP", "ZEROHOUR", "TWELFTH", "ROSTER", "URAHERO", "VICMARCH", "PACMAN"
+]
+
+func extract_audio() -> void:
+	print("Extracting audio (IMF music)...")
+	
+	var audiohed_path = current_data_path + "AUDIOHED" + current_extension
+	var audiot_path = current_data_path + "AUDIOT" + current_extension
+	
+	var audiohed = FileAccess.open(audiohed_path, FileAccess.READ)
+	if audiohed == null:
+		print("-> No AUDIOHED found, skipping music extraction")
+		return
+	
+	var audiot = FileAccess.open(audiot_path, FileAccess.READ)
+	if audiot == null:
+		audiohed.close()
+		print("-> No AUDIOT found, skipping music extraction")
+		return
+	
+	# Read all offsets from AUDIOHED (32-bit each)
+	var offsets: Array[int] = []
+	while audiohed.get_position() < audiohed.get_length():
+		offsets.append(audiohed.get_32())
+	audiohed.close()
+	
+	# Find where music starts by looking for the pattern
+	# Music chunks are larger and start after sound effects
+	# In Wolf3D: startmusic = STARTMUSIC constant (varies by version)
+	# We'll detect it by finding larger chunks near the end
+	
+	var num_chunks = offsets.size() - 1  # Last offset is end-of-file marker
+	
+	# Heuristic: music is in the last ~27 chunks for Wolf3D
+	# Calculate chunk sizes and find music section
+	var chunk_sizes: Array[int] = []
+	for i in range(num_chunks):
+		if offsets[i] != 0xFFFFFFFF and offsets[i + 1] != 0xFFFFFFFF:
+			var size = offsets[i + 1] - offsets[i]
+			chunk_sizes.append(size)
+		else:
+			chunk_sizes.append(0)
+	
+	# Find first large chunk (likely music) - music chunks are typically > 1000 bytes
+	var music_start_idx = -1
+	for i in range(num_chunks - 1, -1, -1):
+		if chunk_sizes[i] > 1000:
+			music_start_idx = i
+	
+	if music_start_idx < 0:
+		print("-> Could not find music in AUDIOT")
+		audiot.close()
+		return
+	
+	# Count backwards to find first music chunk
+	var music_count = 0
+	for i in range(music_start_idx, num_chunks):
+		if chunk_sizes[i] > 500:  # Music is usually > 500 bytes
+			music_count += 1
+	
+	# Adjust music_start_idx to the actual start
+	music_start_idx = num_chunks - music_count
+	
+	print("-> Found %d music tracks starting at chunk %d" % [music_count, music_start_idx])
+	
+	# Extract each music track
+	var extracted = 0
+	for i in range(music_count):
+		var chunk_idx = music_start_idx + i
+		if chunk_idx >= num_chunks:
+			break
+		
+		var offset = offsets[chunk_idx]
+		var next_offset = offsets[chunk_idx + 1]
+		
+		if offset == 0xFFFFFFFF or next_offset == 0xFFFFFFFF:
+			continue
+		
+		var size = next_offset - offset
+		if size <= 0:
+			continue
+		
+		audiot.seek(offset)
+		var data = audiot.get_buffer(size)
+		
+		# Get track name
+		var track_name = "TRACK_%02d" % i
+		if i < MUSIC_NAMES.size():
+			track_name = MUSIC_NAMES[i]
+		
+		# Save as .imf file (can be played with AdPlug or converted)
+		var filename = "%smusic/%s.imf" % [current_output_path, track_name]
+		var file = FileAccess.open(filename, FileAccess.WRITE)
+		if file:
+			# IMF Type-0 format: just the raw data
+			file.store_buffer(data)
+			file.close()
+			extracted += 1
+	
+	audiot.close()
+	print("-> Extracted %d IMF music files to music/" % extracted)
+	
+	# Automatically convert IMF to WAV using bundled imf2wav.exe
+	_convert_imf_to_wav()
+
+
+func _convert_imf_to_wav() -> void:
+	# Path to bundled imf2wav.exe
+	var imf2wav_path = ProjectSettings.globalize_path("res://tools/imf2wav.exe")
+	
+	if not FileAccess.file_exists("res://tools/imf2wav.exe"):
+		print("-> imf2wav.exe not found in tools/, skipping WAV conversion")
+		print("   Copy imf2wav.exe to res://tools/ for automatic conversion")
+		return
+	
+	var music_dir = current_output_path + "music/"
+	var global_music_dir = ProjectSettings.globalize_path(music_dir)
+	
+	var dir = DirAccess.open(music_dir)
+	if dir == null:
+		return
+	
+	print("-> Converting IMF to WAV...")
+	var converted = 0
+	
+	dir.list_dir_begin()
+	var file_name = dir.get_next()
+	while file_name != "":
+		if file_name.ends_with(".imf"):
+			var imf_path = global_music_dir + file_name
+			var wav_name = file_name.replace(".imf", ".wav")
+			var wav_path = global_music_dir + wav_name
+			
+			# Skip if WAV already exists
+			if FileAccess.file_exists(music_dir + wav_name):
+				file_name = dir.get_next()
+				continue
+			
+			# Run imf2wav.exe
+			var args = [imf_path, wav_path]
+			var output = []
+			var result = OS.execute(imf2wav_path, args, output, true)
+			
+			if result == 0:
+				converted += 1
+			else:
+				print("   Failed to convert: ", file_name)
+		
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	
+	print("-> Converted %d IMF files to WAV" % converted)

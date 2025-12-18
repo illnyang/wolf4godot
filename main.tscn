@@ -1,10 +1,9 @@
-[gd_scene load_steps=6 format=3 uid="uid://ddxqf62oqs8cm"]
+[gd_scene load_steps=5 format=3 uid="uid://ddxqf62oqs8cm"]
 
 [ext_resource type="Script" uid="uid://8sdrn45hsvv8" path="res://main.gd" id="1_0xm2m"]
 [ext_resource type="Texture2D" uid="uid://cibn3ius4c6r4" path="res://assets/signon/signon.png" id="2_h2yge"]
-[ext_resource type="Texture2D" uid="uid://cdjie4ov1sb8m" path="res://assets/vga/pics/084_TITLEPIC.png" id="3_lquwl"]
-[ext_resource type="AudioStream" uid="uid://7b01okbk4iiq" path="res://assets/Wolfenstein 3D Title Theme (Converted).mp3" id="4_1bvp3"]
 [ext_resource type="Script" uid="uid://36yw1u24hb6g" path="res://extract_wolf3d.gd" id="5_lquwl"]
+[ext_resource type="Script" uid="uid://cqghnructvywp" path="res://MainMenu.gd" id="6_menu"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -24,19 +23,15 @@ grow_vertical = 2
 texture = ExtResource("2_h2yge")
 
 [node name="MainMenu" type="CanvasLayer" parent="."]
-visible = false
 
-[node name="MenuBackground" type="TextureRect" parent="MainMenu"]
+[node name="MenuControl" type="Control" parent="MainMenu"]
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-texture = ExtResource("3_lquwl")
-
-[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("4_1bvp3")
-autoplay = true
+script = ExtResource("6_menu")
 
 [node name="AssetExtractor" type="Node" parent="."]
 script = ExtResource("5_lquwl")

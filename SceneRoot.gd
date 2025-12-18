@@ -7,12 +7,8 @@ func _ready() -> void:
 	
 func _input(event):
 	if event.is_action_pressed("exit"):
-		exit_game()
+		return_to_menu()
 
-func exit_game():
-	var platform = OS.get_name()
-
-	if platform == "HTML5":
-		print("NThe game cannot be closed in the browser.")
-	else:
-		get_tree().quit()
+func return_to_menu():
+	# Return to main menu instead of quitting
+	get_tree().change_scene_to_file("res://main.tscn")

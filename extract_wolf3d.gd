@@ -35,7 +35,7 @@ var game_configs = {
 	GameType.BLAKE_STONE: {
 		"name": "blake_stone",
 		"data_path": "res://data/blake_stone/",
-		"extension": ".BS6",  # Blake Stone uses different extension
+		"extension": ".BS6",
 		"output": "user://assets/blake_stone/"
 	}
 }

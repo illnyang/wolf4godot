@@ -369,6 +369,9 @@ func _start_game(idx: int) -> void:
 		GameState.current_map = idx
 		print("MainMenu: Starting %s with map: %s" % [GameState.selected_game, GameState.selected_map_path])
 	
+	# Reload sounds for selected game
+	SoundManager.reload_sounds()
+	
 	GameState.start_new_game()
 	get_tree().change_scene_to_file("res://Wolf.tscn")
 

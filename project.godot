@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 AssetExtractor="*res://extract_wolf3d.gd"
 GameState="*res://GameState.gd"
+SoundManager="*res://SoundManager.gd"
 
 [input]
 

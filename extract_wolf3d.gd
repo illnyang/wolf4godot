@@ -145,6 +145,7 @@ func _extract_game(game_type: GameType) -> void:
 	DirAccess.make_dir_recursive_absolute(current_output_path + "maps/thumbs")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "walls")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sprites")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "sounds")
 	
 	extract_maps()
 	extract_vswap()
@@ -490,6 +491,20 @@ func extract_vswap():
 		var sprite_data = vswap.get_buffer(length)
 		save_sprite(sprite_data, i - sprite_start)
 	
+	# Extract digitized sounds (chunks sound_start to end)
+	var num_sounds = num_chunks - sound_start
+	print("-> Extracting %d sounds..." % num_sounds)
+	for i in range(sound_start, num_chunks):
+		var offset = chunk_offsets[i]
+		var length = chunk_lengths[i]
+		
+		if length == 0:
+			continue
+		
+		vswap.seek(offset)
+		var sound_data = vswap.get_buffer(length)
+		save_sound_as_wav(sound_data, i - sound_start)
+	
 	vswap.close()
 	print("-> VSWAP extraction complete")
 	
@@ -689,3 +704,51 @@ func tile_to_color(tile: int) -> Color:
 		return Color(1, 0, 0)
 	else:
 		return Color(0.5, 0.5, 0.5)
+
+
+#-----------------------------------------------------
+# Sound Extraction - Convert raw PCM to WAV
+#-----------------------------------------------------
+func save_sound_as_wav(data: PackedByteArray, sound_id: int) -> void:
+	if data.size() == 0:
+		return
+	
+	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, ~7000 Hz
+	const SAMPLE_RATE = 7000
+	const BITS_PER_SAMPLE = 8
+	const NUM_CHANNELS = 1
+	
+	var filename = "%ssounds/DIGI_%03d.wav" % [current_output_path, sound_id]
+	var file = FileAccess.open(filename, FileAccess.WRITE)
+	if file == null:
+		push_error("Cannot create sound file: " + filename)
+		return
+	
+	# WAV file header (44 bytes)
+	var data_size = data.size()
+	var file_size = 36 + data_size
+	
+	# RIFF header
+	file.store_buffer("RIFF".to_ascii_buffer())
+	file.store_32(file_size)
+	file.store_buffer("WAVE".to_ascii_buffer())
+	
+	# fmt sub-chunk
+	file.store_buffer("fmt ".to_ascii_buffer())
+	file.store_32(16)  # Sub-chunk size
+	file.store_16(1)   # Audio format (1 = PCM)
+	file.store_16(NUM_CHANNELS)
+	file.store_32(SAMPLE_RATE)
+	file.store_32(SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8)  # Byte rate
+	file.store_16(NUM_CHANNELS * BITS_PER_SAMPLE / 8)  # Block align
+	file.store_16(BITS_PER_SAMPLE)
+	
+	# data sub-chunk
+	file.store_buffer("data".to_ascii_buffer())
+	file.store_32(data_size)
+	
+	# Wolf3D uses unsigned 8-bit PCM, WAV expects unsigned 8-bit
+	# So we can write the data directly
+	file.store_buffer(data)
+	
+	file.close()

@@ -42,6 +42,9 @@ func _ready() -> void:
 	_detect_games()
 	_create_ui()
 	_show_title()
+	
+	# Play title music from extracted assets
+	MusicManager.play_title_music()
 
 func _load_assets() -> void:
 	cursor_texture1 = load(PICS_PATH + "008_C_CURSOR1PIC.png")

@@ -1,8 +1,7 @@
-[gd_scene load_steps=6 format=3 uid="uid://ddxqf62oqs8cm"]
+[gd_scene load_steps=5 format=3 uid="uid://ddxqf62oqs8cm"]
 
 [ext_resource type="Script" uid="uid://8sdrn45hsvv8" path="res://main.gd" id="1_0xm2m"]
 [ext_resource type="Texture2D" uid="uid://cibn3ius4c6r4" path="res://assets/signon/signon.png" id="2_h2yge"]
-[ext_resource type="AudioStream" uid="uid://7b01okbk4iiq" path="res://assets/Wolfenstein 3D Title Theme (Converted).mp3" id="4_1bvp3"]
 [ext_resource type="Script" uid="uid://36yw1u24hb6g" path="res://extract_wolf3d.gd" id="5_lquwl"]
 [ext_resource type="Script" uid="uid://cqghnructvywp" path="res://MainMenu.gd" id="6_menu"]
 
@@ -33,10 +32,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("6_menu")
-
-[node name="MusicPlayer" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("4_1bvp3")
-autoplay = true
 
 [node name="AssetExtractor" type="Node" parent="."]
 script = ExtResource("5_lquwl")

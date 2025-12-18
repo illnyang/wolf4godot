@@ -18,6 +18,8 @@ var level_stats: LevelStats = null
 # Current level
 var current_map: int = 0
 var episode: int = 0
+var selected_map_path: String = "user://assets/wolf3d/maps/json/00_Tunnels 1.json"  # Default map
+var selected_game: String = "wolf3d"  # "wolf3d" or "sod"
 
 signal health_changed(new_health: int)
 signal ammo_changed(new_ammo: int)

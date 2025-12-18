@@ -146,9 +146,11 @@ func _extract_game(game_type: GameType) -> void:
 	DirAccess.make_dir_recursive_absolute(current_output_path + "walls")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sprites")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sounds")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "music")
 	
 	extract_maps()
 	extract_vswap()
+	extract_audio()  # Extract IMF music from AUDIOT
 	
 #func already_extracted() -> bool:
 	#var map_dir = DirAccess.open(output_path + "maps/json/")
@@ -752,3 +754,172 @@ func save_sound_as_wav(data: PackedByteArray, sound_id: int) -> void:
 	file.store_buffer(data)
 	
 	file.close()
+
+
+#-----------------------------------------------------
+# Audio Extraction - Extract IMF music from AUDIOT
+#-----------------------------------------------------
+# Wolf3D audio structure:
+# - AUDIOHED contains 32-bit offsets to chunks
+# - AUDIOT contains the actual audio data
+# - Chunks are: PC speaker sounds, AdLib sounds, then AdLib music
+# - Music is in IMF format (OPL2 register writes + timing)
+
+# Wolf3D music track names (AUDIOWL6.H)
+const MUSIC_NAMES = [
+	"CORNER", "DUNGEON", "WARMARCH", "GETTHEM", "HEADACHE",
+	"HITLWLTZ", "INTROCW3", "NAZI_NOR", "NAZI_OMI", "POW",
+	"SALUTE", "SEARCHN", "SUSPENSE", "VICTORS", "WONDERIN",
+	"FUNKYOU", "ENDLEVEL", "GOINGAFT", "PREGNANT", "ULTIMATE",
+	"NAZI_RAP", "ZEROHOUR", "TWELFTH", "ROSTER", "URAHERO", "VICMARCH", "PACMAN"
+]
+
+func extract_audio() -> void:
+	print("Extracting audio (IMF music)...")
+	
+	var audiohed_path = current_data_path + "AUDIOHED" + current_extension
+	var audiot_path = current_data_path + "AUDIOT" + current_extension
+	
+	var audiohed = FileAccess.open(audiohed_path, FileAccess.READ)
+	if audiohed == null:
+		print("-> No AUDIOHED found, skipping music extraction")
+		return
+	
+	var audiot = FileAccess.open(audiot_path, FileAccess.READ)
+	if audiot == null:
+		audiohed.close()
+		print("-> No AUDIOT found, skipping music extraction")
+		return
+	
+	# Read all offsets from AUDIOHED (32-bit each)
+	var offsets: Array[int] = []
+	while audiohed.get_position() < audiohed.get_length():
+		offsets.append(audiohed.get_32())
+	audiohed.close()
+	
+	# Find where music starts by looking for the pattern
+	# Music chunks are larger and start after sound effects
+	# In Wolf3D: startmusic = STARTMUSIC constant (varies by version)
+	# We'll detect it by finding larger chunks near the end
+	
+	var num_chunks = offsets.size() - 1  # Last offset is end-of-file marker
+	
+	# Heuristic: music is in the last ~27 chunks for Wolf3D
+	# Calculate chunk sizes and find music section
+	var chunk_sizes: Array[int] = []
+	for i in range(num_chunks):
+		if offsets[i] != 0xFFFFFFFF and offsets[i + 1] != 0xFFFFFFFF:
+			var size = offsets[i + 1] - offsets[i]
+			chunk_sizes.append(size)
+		else:
+			chunk_sizes.append(0)
+	
+	# Find first large chunk (likely music) - music chunks are typically > 1000 bytes
+	var music_start_idx = -1
+	for i in range(num_chunks - 1, -1, -1):
+		if chunk_sizes[i] > 1000:
+			music_start_idx = i
+	
+	if music_start_idx < 0:
+		print("-> Could not find music in AUDIOT")
+		audiot.close()
+		return
+	
+	# Count backwards to find first music chunk
+	var music_count = 0
+	for i in range(music_start_idx, num_chunks):
+		if chunk_sizes[i] > 500:  # Music is usually > 500 bytes
+			music_count += 1
+	
+	# Adjust music_start_idx to the actual start
+	music_start_idx = num_chunks - music_count
+	
+	print("-> Found %d music tracks starting at chunk %d" % [music_count, music_start_idx])
+	
+	# Extract each music track
+	var extracted = 0
+	for i in range(music_count):
+		var chunk_idx = music_start_idx + i
+		if chunk_idx >= num_chunks:
+			break
+		
+		var offset = offsets[chunk_idx]
+		var next_offset = offsets[chunk_idx + 1]
+		
+		if offset == 0xFFFFFFFF or next_offset == 0xFFFFFFFF:
+			continue
+		
+		var size = next_offset - offset
+		if size <= 0:
+			continue
+		
+		audiot.seek(offset)
+		var data = audiot.get_buffer(size)
+		
+		# Get track name
+		var track_name = "TRACK_%02d" % i
+		if i < MUSIC_NAMES.size():
+			track_name = MUSIC_NAMES[i]
+		
+		# Save as .imf file (can be played with AdPlug or converted)
+		var filename = "%smusic/%s.imf" % [current_output_path, track_name]
+		var file = FileAccess.open(filename, FileAccess.WRITE)
+		if file:
+			# IMF Type-0 format: just the raw data
+			file.store_buffer(data)
+			file.close()
+			extracted += 1
+	
+	audiot.close()
+	print("-> Extracted %d IMF music files to music/" % extracted)
+	
+	# Automatically convert IMF to WAV using bundled imf2wav.exe
+	_convert_imf_to_wav()
+
+
+func _convert_imf_to_wav() -> void:
+	# Path to bundled imf2wav.exe
+	var imf2wav_path = ProjectSettings.globalize_path("res://tools/imf2wav.exe")
+	
+	if not FileAccess.file_exists("res://tools/imf2wav.exe"):
+		print("-> imf2wav.exe not found in tools/, skipping WAV conversion")
+		print("   Copy imf2wav.exe to res://tools/ for automatic conversion")
+		return
+	
+	var music_dir = current_output_path + "music/"
+	var global_music_dir = ProjectSettings.globalize_path(music_dir)
+	
+	var dir = DirAccess.open(music_dir)
+	if dir == null:
+		return
+	
+	print("-> Converting IMF to WAV...")
+	var converted = 0
+	
+	dir.list_dir_begin()
+	var file_name = dir.get_next()
+	while file_name != "":
+		if file_name.ends_with(".imf"):
+			var imf_path = global_music_dir + file_name
+			var wav_name = file_name.replace(".imf", ".wav")
+			var wav_path = global_music_dir + wav_name
+			
+			# Skip if WAV already exists
+			if FileAccess.file_exists(music_dir + wav_name):
+				file_name = dir.get_next()
+				continue
+			
+			# Run imf2wav.exe
+			var args = [imf_path, wav_path]
+			var output = []
+			var result = OS.execute(imf2wav_path, args, output, true)
+			
+			if result == 0:
+				converted += 1
+			else:
+				print("   Failed to convert: ", file_name)
+		
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	
+	print("-> Converted %d IMF files to WAV" % converted)

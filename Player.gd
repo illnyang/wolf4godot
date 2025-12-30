@@ -39,7 +39,6 @@ func _ready() -> void:
 	_update_tile_indices()
 
 func _physics_process(delta: float) -> void:
-	# Obrót
 	if Input.is_action_pressed("turn_right"):
 		rotate_y(-TURN_SPEED * delta)
 	elif Input.is_action_pressed("turn_left"):

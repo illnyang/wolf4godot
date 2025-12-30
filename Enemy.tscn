@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://ryreru23s5aa"]
+
+[ext_resource type="Script" path="res://Enemy.gd" id="1_f1v4y"]
+
+[node name="Enemy" type="Node3D"]
+script = ExtResource("1_f1v4y")
+
+[node name="Sprite3D" type="Sprite3D" parent="."]
+pixel_size = 0.015
+billboard = 2
+transparent = true
+double_sided = false
+texture_filter = 0

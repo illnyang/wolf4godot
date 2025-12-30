@@ -37,10 +37,14 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("action") or Input.is_action_just_pressed("ui_select"): 
 		_try_interact()
 	var move_dir := Vector3.ZERO
-	if Input.is_action_pressed("move_forward"): move_dir -= cam.global_transform.basis.z
-	if Input.is_action_pressed("move_backward"): move_dir += cam.global_transform.basis.z
-	if Input.is_action_pressed("ui_right"): move_dir += cam.global_transform.basis.x
-	if Input.is_action_pressed("ui_left"): move_dir -= cam.global_transform.basis.x
+	if Input.is_action_pressed("move_forward"):
+		move_dir -= cam.global_transform.basis.z
+	if Input.is_action_pressed("move_backward"):
+		move_dir += cam.global_transform.basis.z
+	if Input.is_action_pressed("ui_right"):
+		move_dir += cam.global_transform.basis.x
+	if Input.is_action_pressed("ui_left"):
+		move_dir -= cam.global_transform.basis.x
 	
 	move_dir.y = 0
 	if move_dir.length_squared() > 0.000001:

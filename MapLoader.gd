@@ -206,7 +206,7 @@ func spawn_layer1() -> void:
 			if L1Utils.is_door(tile_id) or L1Utils.is_elevator_door(tile_id):
 				var door_axis: bool = L1Utils.get_axis(tile_id)
 				var door_inst := MeshInstance3D.new()
-
+				door_inst.set_script(load("res://doors.gd"))
 				door_inst.name = "Door"
 				door_inst.mesh = door_ew_mesh if door_axis else door_ns_mesh
 				door_inst.material_override = tile_material

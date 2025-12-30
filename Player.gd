@@ -11,6 +11,7 @@ const TURN_SPEED := 1.5
 var grid = null
 var tilex: int = 0
 var tiley: int = 0
+
 @onready var cam: Camera3D = $Camera3D
 signal hp_changed(current_hp: int, max_hp: int)
 signal died
@@ -18,6 +19,10 @@ signal died
 var current_hp: int
 
 func _ready() -> void:
+	current_hp = max_hp
+	emit_signal("hp_changed", current_hp, max_hp)
+	
+	# If not assigned in the editor, find MapLoader parent automatically
 	if map_loader == null:
 		var p = get_parent()
 		while p:
@@ -25,8 +30,13 @@ func _ready() -> void:
 				map_loader = p
 				break
 			p = p.get_parent()
+
 	if map_loader:
 		grid = map_loader.grid
+	else:
+		push_warning("Player: MapLoader not found; collisions disabled.")
+	
+	_update_tile_indices()
 
 func _physics_process(delta: float) -> void:
 	# Obrót
@@ -37,13 +47,13 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("action") or Input.is_action_just_pressed("ui_select"): 
 		_try_interact()
 	var move_dir := Vector3.ZERO
-	if Input.is_action_pressed("move_forward"):
+	if Input.is_action_pressed("move_forward"): 
 		move_dir -= cam.global_transform.basis.z
-	if Input.is_action_pressed("move_backward"):
+	if Input.is_action_pressed("move_backward"): 
 		move_dir += cam.global_transform.basis.z
-	if Input.is_action_pressed("ui_right"):
+	if Input.is_action_pressed("ui_right"): 
 		move_dir += cam.global_transform.basis.x
-	if Input.is_action_pressed("ui_left"):
+	if Input.is_action_pressed("ui_left"): 
 		move_dir -= cam.global_transform.basis.x
 	
 	move_dir.y = 0

@@ -1,10 +1,10 @@
 [gd_scene load_steps=6 format=3 uid="uid://bwlp1654240cs"]
 
-[ext_resource type="Script" uid="uid://dd1lvixvfkawk" path="res://SceneRoot.gd" id="1_55onw"]
+[ext_resource type="Script" uid="uid://dx4ybywye86aw" path="res://SceneRoot.gd" id="1_55onw"]
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://Player.tscn" id="2_w4mwi"]
-[ext_resource type="Script" uid="uid://dmj4luogqsov7" path="res://MapLoader.gd" id="3_en2fo"]
-[ext_resource type="Script" uid="uid://bx10ohnw61ckr" path="res://SoundPlayer.gd" id="3_x42b1"]
-[ext_resource type="Script" uid="uid://bhfhvfq76em8u" path="res://HUD.gd" id="4_x42b1"]
+[ext_resource type="Script" uid="uid://bsh6818j46oyw" path="res://MapLoader.gd" id="3_en2fo"]
+[ext_resource type="Script" uid="uid://dpj3m032wmn7y" path="res://SoundPlayer.gd" id="3_x42b1"]
+[ext_resource type="Script" uid="uid://b1nvakt47yiie" path="res://HUD.gd" id="4_x42b1"]
 
 [node name="SceneRoot" type="Node3D"]
 physics_interpolation_mode = 1

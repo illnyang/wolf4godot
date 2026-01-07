@@ -45,6 +45,98 @@ class L2Utils:
 	static func get_static_idx(id: int) -> int:
 		return id - 23
 
+	# Enemy types enum
+	enum EnemyType { NONE, GUARD, OFFICER, SS, DOG, MUTANT, BOSS }
+
+	# Check if this is any kind of enemy (standing or patrol, any difficulty)
+	static func is_enemy(id: int) -> bool:
+		return get_enemy_info(id)[0] != EnemyType.NONE
+
+	# Returns [enemy_type, direction, is_patrol]
+	# Direction: 0=North, 1=East, 2=South, 3=West
+	static func get_enemy_info(id: int) -> Array:
+		# Normalize difficulty variations to base ID
+		# Hard difficulty adds +72 (or +36 twice), Medium adds +36
+		var base_id = id
+		
+		# Guard standing: 108-111 (easy), 144-147 (med), 180-183 (hard)
+		# Guard patrol:  112-115 (easy), 148-151 (med), 184-187 (hard)
+		if id >= 180 and id <= 187:
+			base_id = id - 72
+		elif id >= 144 and id <= 151:
+			base_id = id - 36
+		if base_id >= 108 and base_id <= 111:
+			return [EnemyType.GUARD, base_id - 108, false]
+		if base_id >= 112 and base_id <= 115:
+			return [EnemyType.GUARD, base_id - 112, true]
+		
+		# Officer standing: 116-119 (easy), 152-155 (med), 188-191 (hard)
+		# Officer patrol:  120-123 (easy), 156-159 (med), 192-195 (hard)
+		if id >= 188 and id <= 195:
+			base_id = id - 72
+		elif id >= 152 and id <= 159:
+			base_id = id - 36
+		else:
+			base_id = id
+		if base_id >= 116 and base_id <= 119:
+			return [EnemyType.OFFICER, base_id - 116, false]
+		if base_id >= 120 and base_id <= 123:
+			return [EnemyType.OFFICER, base_id - 120, true]
+		
+		# SS standing: 126-129 (easy), 162-165 (med), 198-201 (hard)
+		# SS patrol:  130-133 (easy), 166-169 (med), 202-205 (hard)
+		if id >= 198 and id <= 205:
+			base_id = id - 72
+		elif id >= 162 and id <= 169:
+			base_id = id - 36
+		else:
+			base_id = id
+		if base_id >= 126 and base_id <= 129:
+			return [EnemyType.SS, base_id - 126, false]
+		if base_id >= 130 and base_id <= 133:
+			return [EnemyType.SS, base_id - 130, true]
+		
+		# Dog standing: 134-137 (easy), 170-173 (med), 206-209 (hard)
+		# Dog patrol:  138-141 (easy), 174-177 (med), 210-213 (hard)
+		if id >= 206 and id <= 213:
+			base_id = id - 72
+		elif id >= 170 and id <= 177:
+			base_id = id - 36
+		else:
+			base_id = id
+		if base_id >= 134 and base_id <= 137:
+			return [EnemyType.DOG, base_id - 134, false]
+		if base_id >= 138 and base_id <= 141:
+			return [EnemyType.DOG, base_id - 138, true]
+		
+		# Mutant standing: 216-219 (easy), 234-237 (med), 252-255 (hard)
+		# Mutant patrol:  220-223 (easy), 238-241 (med), 256-259 (hard)
+		if id >= 252 and id <= 259:
+			base_id = id - 36
+		elif id >= 234 and id <= 241:
+			base_id = id - 18
+		else:
+			base_id = id
+		if base_id >= 216 and base_id <= 219:
+			return [EnemyType.MUTANT, base_id - 216, false]
+		if base_id >= 220 and base_id <= 223:
+			return [EnemyType.MUTANT, base_id - 220, true]
+		
+		# Boss enemies (special cases, no direction/patrol)
+		if id == 214: return [EnemyType.BOSS, 0, false]  # Hans
+		if id == 197: return [EnemyType.BOSS, 0, false]  # Gretel
+		if id == 215: return [EnemyType.BOSS, 0, false]  # Gift
+		if id == 179: return [EnemyType.BOSS, 0, false]  # Fat
+		if id == 196: return [EnemyType.BOSS, 0, false]  # Schabbs
+		if id == 160: return [EnemyType.BOSS, 0, false]  # Fake Hitler
+		if id == 178: return [EnemyType.BOSS, 0, false]  # Hitler
+		
+		return [EnemyType.NONE, 0, false]
+	
+	# Dead guard decoration
+	static func is_dead_guard(id: int) -> bool:
+		return id == 124
+
 
 class MapGrid:
 	const _map_size: int = 64
@@ -280,6 +372,77 @@ func spawn_layer2() -> void:
 				sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
 				root_node.add_child(sprite)
+			
+			# Spawn enemies
+			elif L2Utils.is_enemy(id):
+				var enemy_info = L2Utils.get_enemy_info(id)
+				var enemy_type = enemy_info[0]
+				var direction = enemy_info[1]
+				var is_patrol = enemy_info[2]
+				
+				var enemy_node: Node3D = Node3D.new()
+				enemy_node.name = "Enemy_%d_%d" % [x, y]
+				enemy_node.position = Vector3(x + 0.5, 0, y + 0.5)
+				enemy_node.rotation_degrees.y = direction * -90  # Face the correct direction
+				
+				# Create a visual representation for the enemy
+				var sprite: Sprite3D = Sprite3D.new()
+				sprite.centered = true
+				sprite.pixel_size = 0.015
+				sprite.axis = 2 # Z-Axis
+				sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+				sprite.transparent = true
+				sprite.double_sided = false
+				sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+				
+				# Sprite indices based on WL_DEF.H enum (adjusted for extraction offset)
+				# The extraction subtracts 2 from sprite IDs, so:
+				# Guard standing (SPR_GRD_S_1-8): enum 50-57 -> file 48-55
+				# Dog walk (SPR_DOG_W1_1-8): enum 99-106 -> file 97-104
+				# SS standing (SPR_SS_S_1-8): enum 131-138 -> file 129-136
+				# Mutant standing (SPR_MUT_S_1-8): enum 154-161 -> file 152-159
+				# Officer standing (SPR_OFC_S_1-8): enum 179-186 -> file 177-184
+				var sprite_base_idx: int = 0
+				match enemy_type:
+					L2Utils.EnemyType.GUARD:
+						sprite_base_idx = 48  # SPR_GRD_S_1
+					L2Utils.EnemyType.DOG:
+						sprite_base_idx = 97  # SPR_DOG_W1_1 (dogs have walk sprites, no standing)
+					L2Utils.EnemyType.SS:
+						sprite_base_idx = 129  # SPR_SS_S_1
+					L2Utils.EnemyType.MUTANT:
+						sprite_base_idx = 152  # SPR_MUT_S_1
+					L2Utils.EnemyType.OFFICER:
+						sprite_base_idx = 177  # SPR_OFC_S_1
+					L2Utils.EnemyType.BOSS:
+						sprite_base_idx = 48  # Fallback to guard for now
+				
+				# Add direction offset (8 sprites per direction set)
+				# Wolf3D direction order: 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW
+				# Our direction: 0=N, 1=E, 2=S, 3=W -> map to sprite offset
+				var dir_to_sprite = [0, 2, 4, 6]  # N->0, E->2, S->4, W->6
+				var sprite_idx = sprite_base_idx + dir_to_sprite[direction]
+				
+				var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), sprite_idx]
+				var img = Image.load_from_file(sprite_path)
+				if img != null:
+					sprite.texture = ImageTexture.create_from_image(img)
+				else:
+					# Fallback to sprite 0 if not found
+					sprite_path = "%sSPR_STAT_0.png" % _get_sprite_texture_folder()
+					img = Image.load_from_file(sprite_path)
+					if img != null:
+						sprite.texture = ImageTexture.create_from_image(img)
+					push_warning("Enemy: missing sprite %d, using fallback at (%d, %d)" % [sprite_idx, x, y])
+				
+				enemy_node.add_child(sprite)
+				
+				# Store enemy metadata on node for future AI use
+				enemy_node.set_meta("enemy_type", enemy_type)
+				enemy_node.set_meta("direction", direction)
+				enemy_node.set_meta("is_patrol", is_patrol)
+				
+				root_node.add_child(enemy_node)
 
 
 #-----------------------------------------------------

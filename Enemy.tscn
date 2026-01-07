@@ -1,8 +1,14 @@
-[gd_scene load_steps=2 format=3 uid="uid://ryreru23s5aa"]
+[gd_scene load_steps=3 format=3 uid="uid://ryreru23s5aa"]
 
 [ext_resource type="Script" path="res://Enemy.gd" id="1_f1v4y"]
 
-[node name="Enemy" type="Node3D"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
+radius = 0.4
+height = 1.0
+
+[node name="Enemy" type="Area3D"]
+collision_layer = 2
+collision_mask = 0
 script = ExtResource("1_f1v4y")
 
 [node name="Sprite3D" type="Sprite3D" parent="."]
@@ -11,3 +17,6 @@ billboard = 2
 transparent = true
 double_sided = false
 texture_filter = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape3D_1")

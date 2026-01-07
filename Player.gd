@@ -7,6 +7,19 @@ extends CharacterBody3D
 
 const SPEED := 7.0
 const TURN_SPEED := 1.5
+
+# Weapon fire rates (seconds between shots)
+const FIRE_RATES = {
+	GameState.Weapon.KNIFE: 0.5,
+	GameState.Weapon.PISTOL: 0.2,
+	GameState.Weapon.MACHINEGUN: 0.125,
+	GameState.Weapon.CHAINGUN: 0.1,
+}
+
+# Shooting state
+var fire_cooldown: float = 0.0
+var is_firing: bool = false
+
 # Runtime
 var grid = null
 var tilex: int = 0
@@ -19,6 +32,7 @@ signal died
 var current_hp: int
 
 func _ready() -> void:
+	add_to_group("player")
 	current_hp = max_hp
 	emit_signal("hp_changed", current_hp, max_hp)
 	
@@ -39,6 +53,14 @@ func _ready() -> void:
 	_update_tile_indices()
 
 func _physics_process(delta: float) -> void:
+	# Update fire cooldown
+	if fire_cooldown > 0:
+		fire_cooldown -= delta
+	
+	# Handle shooting input
+	if Input.is_action_pressed("shoot"):
+		_try_shoot()
+	
 	if Input.is_action_pressed("turn_right"):
 		rotate_y(-TURN_SPEED * delta)
 	elif Input.is_action_pressed("turn_left"):
@@ -60,6 +82,28 @@ func _physics_process(delta: float) -> void:
 		move_dir = move_dir.normalized()
 
 	_attempt_move(move_dir * SPEED * delta)
+
+func _try_shoot() -> void:
+	# Check cooldown
+	if fire_cooldown > 0:
+		return
+	
+	var weapon = GameState.weapon
+	
+	# Knife doesn't use ammo
+	if weapon != GameState.Weapon.KNIFE:
+		if not GameState.use_ammo():
+			# Out of ammo, auto-switches to knife
+			return
+	
+	# Set cooldown for next shot
+	fire_cooldown = FIRE_RATES.get(weapon, 0.2)
+	
+	# Calculate damage (random 15-30 like original Wolf3D)
+	var damage = randi_range(15, 30)
+	
+	# Perform raycast to find target
+	_perform_hitscan(damage, weapon)
 
 func _try_interact() -> void:
 	if not map_loader or not grid: return
@@ -153,3 +197,33 @@ func die() -> void:
 
 func sign(v: float) -> int:
 	return -1 if v < 0 else 1
+
+func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
+	# Raycast from camera center
+	var space_state = get_world_3d().direct_space_state
+	
+	var from = cam.global_position
+	var forward = -cam.global_transform.basis.z
+	
+	# Knife has short range (melee), guns have long range
+	var range = 1.5 if weapon == GameState.Weapon.KNIFE else 100.0
+	var to = from + forward * range
+	
+	# Create raycast query that hits collision layer 2 (enemies)
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 2  # Layer 2 = enemies (as set in Enemy.tscn)
+	query.collide_with_areas = true
+	
+	var result = space_state.intersect_ray(query)
+	
+	if result and result.collider:
+		# Check if it's an enemy
+		if result.collider.is_in_group("enemies"):
+			# Apply damage to the enemy
+			if result.collider.has_method("take_damage"):
+				result.collider.take_damage(damage)
+				print("Hit enemy! Damage: %d" % damage)
+		else:
+			print("Hit: ", result.collider.name)
+	else:
+		print("Missed!")

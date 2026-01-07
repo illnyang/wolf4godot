@@ -183,6 +183,29 @@ func play_sound(sound_id: int) -> void:
 	audio_players[0].stream = sound_cache[sound_id]
 	audio_players[0].play()
 
+# Sound name to ID mapping for string-based lookups
+const SOUND_NAME_MAP = {
+	"HALTSND": SoundID.HALTSND,
+	"DOGBARKSND": SoundID.DOGBARKSND,
+	"DOGDEATHSND": SoundID.DOGDEATHSND,
+	"NAZIFIRESND": SoundID.NAZIFIRESND,
+	"DOGATTACKSND": SoundID.DOGBARKSND,  # Use bark for now
+	"SCHABORGSND": SoundID.SCHABORGSND,
+	"SCABORGSND": SoundID.SCHABORGSND,  # Alias with typo
+	"DEATHSCREAM1SND": SoundID.PLAYERDEATHSND,  # Reuse for now
+	"LEBENSND": SoundID.SCHABORGSND,  # SS death - use schabord sound
+	"NEINSOVASSND": SoundID.HALTSND,  # Officer death
+}
+
+func play_sfx(sound_name: String) -> void:
+	var sound_id = SOUND_NAME_MAP.get(sound_name, -1)
+	if sound_id >= 0:
+		play_sound(sound_id)
+	else:
+		# Try playing by direct ID if numeric
+		if sound_name.is_valid_int():
+			play_sound(sound_name.to_int())
+
 # Convenience functions for common sounds
 func play_pickup() -> void:
 	play_sound(SoundID.BONUS1SND)

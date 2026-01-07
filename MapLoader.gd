@@ -380,34 +380,13 @@ func spawn_layer2() -> void:
 				var direction = enemy_info[1]
 				var is_patrol = enemy_info[2]
 				
-				var enemy_node: Node3D = Node3D.new()
-				enemy_node.name = "Enemy_%d_%d" % [x, y]
-				enemy_node.position = Vector3(x + 0.5, 0, y + 0.5)
-				enemy_node.rotation_degrees.y = direction * -90  # Face the correct direction
-				
-				# Create a visual representation for the enemy
-				var sprite: Sprite3D = Sprite3D.new()
-				sprite.centered = true
-				sprite.pixel_size = 0.015
-				sprite.axis = 2 # Z-Axis
-				sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-				sprite.transparent = true
-				sprite.double_sided = false
-				sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-				
-				# Sprite indices based on WL_DEF.H enum (adjusted for extraction offset)
-				# The extraction subtracts 2 from sprite IDs, so:
-				# Guard standing (SPR_GRD_S_1-8): enum 50-57 -> file 48-55
-				# Dog walk (SPR_DOG_W1_1-8): enum 99-106 -> file 97-104
-				# SS standing (SPR_SS_S_1-8): enum 131-138 -> file 129-136
-				# Mutant standing (SPR_MUT_S_1-8): enum 154-161 -> file 152-159
-				# Officer standing (SPR_OFC_S_1-8): enum 179-186 -> file 177-184
+				# Calculate sprite index
 				var sprite_base_idx: int = 0
 				match enemy_type:
 					L2Utils.EnemyType.GUARD:
 						sprite_base_idx = 48  # SPR_GRD_S_1
 					L2Utils.EnemyType.DOG:
-						sprite_base_idx = 97  # SPR_DOG_W1_1 (dogs have walk sprites, no standing)
+						sprite_base_idx = 97  # SPR_DOG_W1_1 
 					L2Utils.EnemyType.SS:
 						sprite_base_idx = 129  # SPR_SS_S_1
 					L2Utils.EnemyType.MUTANT:
@@ -417,30 +396,38 @@ func spawn_layer2() -> void:
 					L2Utils.EnemyType.BOSS:
 						sprite_base_idx = 48  # Fallback to guard for now
 				
-				# Add direction offset (8 sprites per direction set)
-				# Wolf3D direction order: 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW
-				# Our direction: 0=N, 1=E, 2=S, 3=W -> map to sprite offset
+				# Map direction to sprite offset
 				var dir_to_sprite = [0, 2, 4, 6]  # N->0, E->2, S->4, W->6
 				var sprite_idx = sprite_base_idx + dir_to_sprite[direction]
 				
-				var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), sprite_idx]
-				var img = Image.load_from_file(sprite_path)
-				if img != null:
-					sprite.texture = ImageTexture.create_from_image(img)
-				else:
-					# Fallback to sprite 0 if not found
-					sprite_path = "%sSPR_STAT_0.png" % _get_sprite_texture_folder()
-					img = Image.load_from_file(sprite_path)
-					if img != null:
-						sprite.texture = ImageTexture.create_from_image(img)
-					push_warning("Enemy: missing sprite %d, using fallback at (%d, %d)" % [sprite_idx, x, y])
+				# Create enemy using the Enemy scene
+				var enemy_scene = preload("res://Enemy.tscn")
+				var enemy_node: Area3D = enemy_scene.instantiate()
+				enemy_node.name = "Enemy_%d_%d" % [x, y]
+				enemy_node.position = Vector3(x + 0.5, 0, y + 0.5)
+				enemy_node.rotation_degrees.y = direction * -90
 				
-				enemy_node.add_child(sprite)
-				
-				# Store enemy metadata on node for future AI use
-				enemy_node.set_meta("enemy_type", enemy_type)
+				# Set up the enemy with proper type and sprite
+				enemy_node.enemy_type = enemy_type
+				enemy_node.sprite_texture_folder = _get_sprite_texture_folder()
+				enemy_node.set_meta("sprite_idx", sprite_idx)
 				enemy_node.set_meta("direction", direction)
 				enemy_node.set_meta("is_patrol", is_patrol)
+				
+				# Load and apply sprite texture to the scene's Sprite3D
+				var sprite: Sprite3D = enemy_node.get_node("Sprite3D")
+				if sprite:
+					var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), sprite_idx]
+					var img = Image.load_from_file(sprite_path)
+					if img != null:
+						sprite.texture = ImageTexture.create_from_image(img)
+					else:
+						# Fallback to sprite 0 if not found
+						sprite_path = "%sSPR_STAT_0.png" % _get_sprite_texture_folder()
+						img = Image.load_from_file(sprite_path)
+						if img != null:
+							sprite.texture = ImageTexture.create_from_image(img)
+						push_warning("Enemy: missing sprite %d at (%d, %d)" % [sprite_idx, x, y])
 				
 				root_node.add_child(enemy_node)
 

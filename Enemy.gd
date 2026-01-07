@@ -1,32 +1,898 @@
 class_name Enemy
-extends Node3D
+extends Area3D
 
-@export var sprite_texture_folder: String = "user://assets/sprites/"
-@export var sprite_index: int = 0
+# Enemy types (matching L2Utils.EnemyType)
+enum EnemyType { NONE, GUARD, OFFICER, SS, DOG, MUTANT, BOSS }
 
-@onready var _sprite: Sprite3D = $Sprite3D
+# AI States (matching original Wolf3D state machine)
+enum State { STAND, PATH, CHASE, SHOOT, PAIN, DIE, DEAD }
+
+# Directions (matching original Wolf3D - WL_DEF.H)
+enum Dir { NORTH = 0, NORTHEAST = 1, EAST = 2, SOUTHEAST = 3, SOUTH = 4, SOUTHWEST = 5, WEST = 6, NORTHWEST = 7, NODIR = 8 }
+
+const OPPOSITE = [Dir.SOUTH, Dir.SOUTHWEST, Dir.WEST, Dir.NORTHWEST, Dir.NORTH, Dir.NORTHEAST, Dir.EAST, Dir.SOUTHEAST, Dir.NODIR]
+
+# Direction vectors (for movement) - pre-calculated normalized values
+const DIAG = 0.7071067811865476  # 1/sqrt(2) for diagonal movement
+const DIR_VECTORS = {
+	Dir.NORTH: Vector3(0, 0, -1),
+	Dir.NORTHEAST: Vector3(DIAG, 0, -DIAG),
+	Dir.EAST: Vector3(1, 0, 0),
+	Dir.SOUTHEAST: Vector3(DIAG, 0, DIAG),
+	Dir.SOUTH: Vector3(0, 0, 1),
+	Dir.SOUTHWEST: Vector3(-DIAG, 0, DIAG),
+	Dir.WEST: Vector3(-1, 0, 0),
+	Dir.NORTHWEST: Vector3(-DIAG, 0, -DIAG),
+	Dir.NODIR: Vector3.ZERO,
+}
+
+# Health values by enemy type (matching original Wolf3D starthitpoints)
+const HEALTH_VALUES = {
+	EnemyType.GUARD: 25,
+	EnemyType.OFFICER: 50,
+	EnemyType.SS: 100,
+	EnemyType.DOG: 1,
+	EnemyType.MUTANT: 45,
+	EnemyType.BOSS: 850,
+}
+
+# Speed values (tiles per second, scaled from original)
+const SPEED_VALUES = {
+	EnemyType.GUARD: 1.5,
+	EnemyType.OFFICER: 2.5,
+	EnemyType.SS: 2.0,
+	EnemyType.DOG: 4.0,
+	EnemyType.MUTANT: 1.5,
+	EnemyType.BOSS: 1.0,
+}
+
+# Reaction time ranges (in seconds, converted from tics)
+const REACTION_TIMES = {
+	EnemyType.GUARD: [0.1, 0.5],
+	EnemyType.OFFICER: [0.05, 0.05],
+	EnemyType.SS: [0.05, 0.25],
+	EnemyType.DOG: [0.02, 0.15],
+	EnemyType.MUTANT: [0.05, 0.25],
+	EnemyType.BOSS: [0.02, 0.02],
+}
+
+# Sprite base indices for each enemy type (correct ranges from extracted sprites)
+# Guard: 48-96, Dog: 97-135, SS: 136-184, Mutant: 185-235, Officer: 236-285
+const SPRITE_BASES = {
+	EnemyType.GUARD: 48,     # Guard sprites: 48-96
+	EnemyType.DOG: 97,       # Dog sprites: 97-135
+	EnemyType.SS: 136,       # SS (blue) sprites: 136-184
+	EnemyType.MUTANT: 185,   # Mutant sprites: 185-235
+	EnemyType.OFFICER: 236,  # Officer sprites: 236-285
+	EnemyType.BOSS: 294,     # Hans Grosse: 294-304
+}
+
+@export var enemy_type: EnemyType = EnemyType.GUARD
+@export var sprite_texture_folder: String = "user://assets/wolf3d/sprites/"
+
+# Core state
+var state: State = State.STAND
+var health: int = 25
+var is_dead: bool = false
+var speed: float = 1.5
+
+# Movement
+var direction: int = Dir.NODIR
+var distance: float = 0.0  # Distance remaining to next tile center
+var tilex: int = 0
+var tiley: int = 0
+
+# AI flags (matching original FL_ flags)
+var is_ambush: bool = false
+var in_attack_mode: bool = false
+var first_attack: bool = false
+
+# Detection
+var reaction_time: float = 0.0
+var reaction_countdown: float = 0.0
+
+# Animation
+var anim_timer: float = 0.0
+var anim_frame: int = 0
+var standing_sprite_idx: int = 0
+
+# Shooting
+var shoot_timer: float = 0.0
+const SHOOT_DELAY: float = 0.5
+
+# References
+var map_loader: Node = null
+var grid = null
+var player: Node3D = null
+
+@onready var sprite: Sprite3D = $Sprite3D
+@onready var collision_shape: CollisionShape3D = $CollisionShape3D
+
+signal died(enemy: Enemy)
 
 func _ready() -> void:
-	_apply_sprite_texture()
+	add_to_group("enemies")
+	
+	# Set health and speed based on type
+	health = HEALTH_VALUES.get(enemy_type, 25)
+	speed = SPEED_VALUES.get(enemy_type, 1.5)
+	
+	# Get metadata from MapLoader
+	if has_meta("sprite_idx"):
+		standing_sprite_idx = get_meta("sprite_idx")
+	if has_meta("direction"):
+		direction = get_meta("direction")
+	if has_meta("is_patrol"):
+		var is_patrol = get_meta("is_patrol")
+		state = State.PATH if is_patrol else State.STAND
+		if is_patrol:
+			in_attack_mode = false
+		else:
+			is_ambush = true  # Standing enemies require sight
+	
+	# Calculate tile position
+	tilex = int(floor(position.x))
+	tiley = int(floor(position.z))
+	
+	# Find MapLoader and player
+	_find_references()
+	
+	# Calculate reaction time range for this enemy type
+	var rt = REACTION_TIMES.get(enemy_type, [0.1, 0.3])
+	reaction_time = randf_range(rt[0], rt[1])
 
-func _apply_sprite_texture() -> void:
-	if not is_instance_valid(_sprite):
+func _find_references() -> void:
+	# Find MapLoader
+	var p = get_parent()
+	while p:
+		if p is MapLoader:
+			map_loader = p
+			grid = p.grid
+			break
+		p = p.get_parent()
+	
+	# Find player
+	player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		# Try to find by class
+		for node in get_tree().get_nodes_in_group("default"):
+			if node is CharacterBody3D:
+				player = node
+				break
+
+func _physics_process(delta: float) -> void:
+	if is_dead:
 		return
+	
+	# Make sure we have player reference
+	if player == null:
+		player = get_tree().get_first_node_in_group("player")
+		if player == null:
+			return
+	
+	# Update animation
+	_update_animation(delta)
+	
+	# State machine
+	match state:
+		State.STAND:
+			_t_stand(delta)
+		State.PATH:
+			_t_path(delta)
+		State.CHASE:
+			if enemy_type == EnemyType.DOG:
+				_t_dog_chase(delta)
+			else:
+				_t_chase(delta)
+		State.SHOOT:
+			_t_shoot_state(delta)
+		State.PAIN:
+			_t_pain(delta)
+		State.DIE:
+			pass  # Handled by animation
+		State.DEAD:
+			pass
 
-	if sprite_texture_folder == "":
+# ============================================================================
+# AI BEHAVIORS (Based on WL_ACT2.C)
+# ============================================================================
+
+func _t_stand(_delta: float) -> void:
+	# Just look for the player (original: T_Stand just calls SightPlayer)
+	if _sight_player():
+		_first_sighting()
+
+func _t_path(delta: float) -> void:
+	# Patrolling - check for player first
+	if _sight_player():
+		_first_sighting()
 		return
+	
+	# Move along patrol path
+	if direction == Dir.NODIR:
+		_select_path_dir()
+		if direction == Dir.NODIR:
+			return
+	
+	var move = speed * delta
+	
+	while move > 0:
+		if move < distance:
+			_move_obj(move)
+			break
+		
+		# Reached tile center
+		position.x = tilex + 0.5
+		position.z = tiley + 0.5
+		move -= distance
+		
+		_select_path_dir()
+		if direction == Dir.NODIR:
+			return
 
-	var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, sprite_index]
+func _t_chase(delta: float) -> void:
+	var dodge = false
+	
+	# Check if we can shoot
+	if _check_line():
+		var dx = abs(tilex - int(floor(player.position.x)))
+		var dy = abs(tiley - int(floor(player.position.z)))
+		var dist = max(dx, dy)
+		
+		var chance: float
+		if dist == 0 or (dist == 1 and distance < 0.25):
+			chance = 0.9
+		else:
+			chance = 0.05 / dist
+		
+		if randf() < chance:
+			# Go into attack state
+			state = State.SHOOT
+			shoot_timer = 0.0
+			return
+		
+		dodge = true
+	
+	# Select movement direction
+	if direction == Dir.NODIR:
+		if dodge:
+			_select_dodge_dir()
+		else:
+			_select_chase_dir()
+		if direction == Dir.NODIR:
+			return
+	
+	var move = speed * delta
+	
+	while move > 0:
+		if move < distance:
+			_move_obj(move)
+			break
+		
+		# Reached tile center
+		position.x = tilex + 0.5
+		position.z = tiley + 0.5
+		move -= distance
+		
+		if dodge:
+			_select_dodge_dir()
+		else:
+			_select_chase_dir()
+		
+		if direction == Dir.NODIR:
+			return
+
+func _t_dog_chase(delta: float) -> void:
+	# Dogs don't shoot, they bite
+	if direction == Dir.NODIR:
+		_select_dodge_dir()
+		if direction == Dir.NODIR:
+			return
+	
+	var move = speed * delta
+	
+	while move > 0:
+		# Check if close enough to bite
+		var dx = abs(position.x - player.position.x)
+		var dz = abs(position.z - player.position.z)
+		
+		if dx <= 0.8 and dz <= 0.8:
+			# Bite attack!
+			_t_bite()
+			state = State.CHASE  # Continue chasing
+			return
+		
+		if move < distance:
+			_move_obj(move)
+			break
+		
+		position.x = tilex + 0.5
+		position.z = tiley + 0.5
+		move -= distance
+		
+		_select_dodge_dir()
+		if direction == Dir.NODIR:
+			return
+
+func _t_shoot_state(delta: float) -> void:
+	shoot_timer += delta
+	
+	if shoot_timer >= SHOOT_DELAY:
+		_t_shoot()
+		state = State.CHASE
+		direction = Dir.NODIR
+
+func _t_pain(_delta: float) -> void:
+	# Brief pain state then return to chase
+	await get_tree().create_timer(0.15).timeout
+	state = State.CHASE
+	direction = Dir.NODIR
+
+# ============================================================================
+# COMBAT (Based on WL_ACT2.C T_Shoot and T_Bite)
+# ============================================================================
+
+func _t_shoot() -> void:
+	# Check line of sight first
+	if not _check_line():
+		return
+	
+	var dx = abs(tilex - int(floor(player.position.x)))
+	var dy = abs(tiley - int(floor(player.position.z)))
+	var dist = max(dx, dy)
+	
+	# SS and Boss are better shots (2/3 effective distance)
+	if enemy_type == EnemyType.SS or enemy_type == EnemyType.BOSS:
+		dist = int(dist * 2.0 / 3.0)
+	
+	# Calculate hit chance (original: 256 - dist*16 if not visible, 256 - dist*8 otherwise)
+	# Simplified for Godot
+	var hitchance = 200 - dist * 16
+	hitchance = clamp(hitchance, 10, 250)
+	
+	# Roll for hit
+	if randi() % 256 < hitchance:
+		# Hit! Calculate damage based on distance
+		var damage: int
+		if dist < 2:
+			damage = randi() % 64  # >> 2
+		elif dist < 4:
+			damage = randi() % 32  # >> 3
+		else:
+			damage = randi() % 16  # >> 4
+		
+		damage = max(1, damage)
+		
+		# Deal damage to player
+		if player.has_method("take_damage"):
+			player.take_damage(damage)
+		
+		# Play sound
+		SoundManager.play_sfx("NAZIFIRESND")
+	else:
+		# Miss - still play sound
+		SoundManager.play_sfx("NAZIFIRESND")
+
+func _t_bite() -> void:
+	# Dog bite attack
+	SoundManager.play_sfx("DOGATTACKSND")
+	
+	var dx = abs(position.x - player.position.x)
+	var dz = abs(position.z - player.position.z)
+	
+	if dx <= 1.0 and dz <= 1.0:
+		# 70% chance to hit
+		if randi() % 256 < 180:
+			var damage = randi() % 16
+			damage = max(1, damage)
+			if player.has_method("take_damage"):
+				player.take_damage(damage)
+
+# ============================================================================
+# DETECTION (Based on WL_STATE.C)
+# ============================================================================
+
+func _sight_player() -> bool:
+	# Already in attack mode? Error in original, we just return false
+	if in_attack_mode:
+		return false
+	
+	# Reaction countdown
+	if reaction_countdown > 0:
+		reaction_countdown -= get_physics_process_delta_time()
+		if reaction_countdown > 0:
+			return false
+		# Time to react!
+		return true
+	
+	# Check if we can see/hear the player
+	if is_ambush:
+		# Ambush enemies only react to sight
+		if not _check_sight():
+			return false
+		is_ambush = false
+	else:
+		# Can hear noise (player shooting) or see player
+		# For now, just use sight
+		if not _check_sight():
+			return false
+	
+	# Set reaction time and return false (will react next frame)
+	var rt = REACTION_TIMES.get(enemy_type, [0.1, 0.3])
+	reaction_countdown = randf_range(rt[0], rt[1])
+	return false
+
+func _check_sight() -> bool:
+	if player == null:
+		return false
+	
+	# Distance check first
+	var delta_vec = player.position - position
+	delta_vec.y = 0
+	
+	# If very close, automatic sight
+	if delta_vec.length() < 1.5:
+		return _check_line()
+	
+	# Check if facing the right direction (only for cardinal directions)
+	if direction != Dir.NODIR and direction < 8:
+		match direction:
+			Dir.NORTH:
+				if delta_vec.z > 0:
+					return false
+			Dir.EAST:
+				if delta_vec.x < 0:
+					return false
+			Dir.SOUTH:
+				if delta_vec.z < 0:
+					return false
+			Dir.WEST:
+				if delta_vec.x > 0:
+					return false
+	
+	return _check_line()
+
+func _check_line() -> bool:
+	# Raycast from enemy to player
+	if player == null or grid == null:
+		return true  # Assume visible if no grid
+	
+	var from_tile = Vector2i(tilex, tiley)
+	var to_tile = Vector2i(int(floor(player.position.x)), int(floor(player.position.z)))
+	
+	# Use Bresenham-style line check through tiles
+	var dx = abs(to_tile.x - from_tile.x)
+	var dy = abs(to_tile.y - from_tile.y)
+	var sx = 1 if from_tile.x < to_tile.x else -1
+	var sy = 1 if from_tile.y < to_tile.y else -1
+	var err = dx - dy
+	
+	var x = from_tile.x
+	var y = from_tile.y
+	
+	while x != to_tile.x or y != to_tile.y:
+		var e2 = 2 * err
+		if e2 > -dy:
+			err -= dy
+			x += sx
+		if e2 < dx:
+			err -= dx
+			y += sy
+		
+		# Skip start tile
+		if x == from_tile.x and y == from_tile.y:
+			continue
+		
+		# Check if this tile blocks sight
+		if not grid.is_within_grid(x, y):
+			return false
+		
+		var tile_id = grid.tile_at(x, y)
+		
+		# Walls block sight (tile_id 1-53 are walls)
+		if tile_id >= 1 and tile_id <= 53:
+			return false
+		
+		# Closed doors block sight (90-101 are doors)
+		if tile_id >= 90 and tile_id <= 101:
+			# Check if door is open
+			var door = _find_door_at(x, y)
+			if door and not door.is_open():
+				return false
+	
+	return true
+
+func _find_door_at(tx: int, ty: int) -> Node:
+	var doors = get_tree().get_nodes_in_group("doors")
+	for door in doors:
+		var d_pos = door.get("start_pos")
+		if d_pos == null:
+			d_pos = door.position
+		if int(floor(d_pos.x)) == tx and int(floor(d_pos.z)) == ty:
+			return door
+	return null
+
+# ============================================================================
+# MOVEMENT (Based on WL_STATE.C)
+# ============================================================================
+
+func _select_chase_dir() -> void:
+	if player == null:
+		direction = Dir.NODIR
+		return
+	
+	var deltax = int(floor(player.position.x)) - tilex
+	var deltay = int(floor(player.position.z)) - tiley
+	
+	var d = [Dir.NODIR, Dir.NODIR]
+	
+	if deltax > 0:
+		d[0] = Dir.EAST
+	elif deltax < 0:
+		d[0] = Dir.WEST
+	
+	if deltay > 0:
+		d[1] = Dir.SOUTH
+	elif deltay < 0:
+		d[1] = Dir.NORTH
+	
+	# Prefer the longer axis
+	if abs(deltay) > abs(deltax):
+		var temp = d[0]
+		d[0] = d[1]
+		d[1] = temp
+	
+	# Avoid turnaround
+	var turnaround = OPPOSITE[direction] if direction != Dir.NODIR else Dir.NODIR
+	
+	if d[0] == turnaround:
+		d[0] = Dir.NODIR
+	if d[1] == turnaround:
+		d[1] = Dir.NODIR
+	
+	# Try directions
+	if d[0] != Dir.NODIR:
+		direction = d[0]
+		if _try_walk():
+			return
+	
+	if d[1] != Dir.NODIR:
+		direction = d[1]
+		if _try_walk():
+			return
+	
+	# Try other directions randomly
+	var dirs = [Dir.NORTH, Dir.EAST, Dir.SOUTH, Dir.WEST]
+	dirs.shuffle()
+	for dir in dirs:
+		if dir != turnaround:
+			direction = dir
+			if _try_walk():
+				return
+	
+	# Last resort: turnaround
+	if turnaround != Dir.NODIR:
+		direction = turnaround
+		if _try_walk():
+			return
+	
+	direction = Dir.NODIR
+
+func _select_dodge_dir() -> void:
+	if player == null:
+		_select_chase_dir()
+		return
+	
+	var deltax = int(floor(player.position.x)) - tilex
+	var deltay = int(floor(player.position.z)) - tiley
+	
+	var dirtry = [Dir.NODIR, Dir.NODIR, Dir.NODIR, Dir.NODIR, Dir.NODIR]
+	
+	# Set up direction preferences
+	if deltax > 0:
+		dirtry[1] = Dir.EAST
+		dirtry[3] = Dir.WEST
+	else:
+		dirtry[1] = Dir.WEST
+		dirtry[3] = Dir.EAST
+	
+	if deltay > 0:
+		dirtry[2] = Dir.SOUTH
+		dirtry[4] = Dir.NORTH
+	else:
+		dirtry[2] = Dir.NORTH
+		dirtry[4] = Dir.SOUTH
+	
+	# Randomize for dodging
+	if abs(deltax) > abs(deltay):
+		var temp = dirtry[1]
+		dirtry[1] = dirtry[2]
+		dirtry[2] = temp
+		temp = dirtry[3]
+		dirtry[3] = dirtry[4]
+		dirtry[4] = temp
+	
+	if randf() < 0.5:
+		var temp = dirtry[1]
+		dirtry[1] = dirtry[2]
+		dirtry[2] = temp
+		temp = dirtry[3]
+		dirtry[3] = dirtry[4]
+		dirtry[4] = temp
+	
+	# Calculate diagonal
+	if dirtry[1] == Dir.EAST and dirtry[2] == Dir.NORTH:
+		dirtry[0] = Dir.NORTHEAST
+	elif dirtry[1] == Dir.EAST and dirtry[2] == Dir.SOUTH:
+		dirtry[0] = Dir.SOUTHEAST
+	elif dirtry[1] == Dir.WEST and dirtry[2] == Dir.NORTH:
+		dirtry[0] = Dir.NORTHWEST
+	elif dirtry[1] == Dir.WEST and dirtry[2] == Dir.SOUTH:
+		dirtry[0] = Dir.SOUTHWEST
+	
+	var turnaround = OPPOSITE[direction] if direction != Dir.NODIR else Dir.NODIR
+	if first_attack:
+		turnaround = Dir.NODIR
+		first_attack = false
+	
+	for i in range(5):
+		if dirtry[i] == Dir.NODIR or dirtry[i] == turnaround:
+			continue
+		direction = dirtry[i]
+		if _try_walk():
+			return
+	
+	if turnaround != Dir.NODIR:
+		direction = turnaround
+		if _try_walk():
+			return
+	
+	direction = Dir.NODIR
+
+func _select_path_dir() -> void:
+	# TODO: Read arrow markers from map for patrol paths
+	# For now, just use chase direction slowly
+	_select_chase_dir()
+	distance = 1.0
+
+func _try_walk() -> bool:
+	if direction == Dir.NODIR:
+		return false
+	
+	var new_tilex = tilex
+	var new_tiley = tiley
+	
+	match direction:
+		Dir.NORTH:
+			new_tiley -= 1
+		Dir.NORTHEAST:
+			new_tilex += 1
+			new_tiley -= 1
+		Dir.EAST:
+			new_tilex += 1
+		Dir.SOUTHEAST:
+			new_tilex += 1
+			new_tiley += 1
+		Dir.SOUTH:
+			new_tiley += 1
+		Dir.SOUTHWEST:
+			new_tilex -= 1
+			new_tiley += 1
+		Dir.WEST:
+			new_tilex -= 1
+		Dir.NORTHWEST:
+			new_tilex -= 1
+			new_tiley -= 1
+	
+	# Check if walkable
+	if grid == null:
+		tilex = new_tilex
+		tiley = new_tiley
+		distance = 1.0
+		return true
+	
+	if not grid.is_within_grid(new_tilex, new_tiley):
+		return false
+	
+	var tile_id = grid.tile_at(new_tilex, new_tiley)
+	
+	# Check for walls
+	if tile_id >= 1 and tile_id <= 53:
+		return false
+	
+	# Check for closed doors
+	if tile_id >= 90 and tile_id <= 101:
+		var door = _find_door_at(new_tilex, new_tiley)
+		if door and not door.is_open():
+			return false
+	
+	tilex = new_tilex
+	tiley = new_tiley
+	distance = 1.0
+	return true
+
+func _move_obj(move: float) -> void:
+	if direction == Dir.NODIR:
+		return
+	
+	var move_vec = DIR_VECTORS.get(direction, Vector3.ZERO) * move
+	var new_pos = position + move_vec
+	
+	# Check player collision
+	if player:
+		var delta_vec = new_pos - player.position
+		delta_vec.y = 0
+		if delta_vec.length() < 0.5:
+			# Too close to player, back up
+			return
+	
+	position = new_pos
+	distance -= move
+
+# ============================================================================
+# FIRST SIGHTING (Based on WL_STATE.C)
+# ============================================================================
+
+func _first_sighting() -> void:
+	# Switch to chase mode
+	in_attack_mode = true
+	first_attack = true
+	direction = Dir.NODIR
+	
+	# Turn toward player if needed
+	if player:
+		var dx = player.position.x - position.x
+		var dz = player.position.z - position.z
+		
+		if abs(dx) > abs(dz):
+			direction = Dir.EAST if dx > 0 else Dir.WEST
+		else:
+			direction = Dir.SOUTH if dz > 0 else Dir.NORTH
+	
+	state = State.CHASE
+	
+	# Play alert sound
+	match enemy_type:
+		EnemyType.GUARD:
+			SoundManager.play_sfx("HALTSND")
+		EnemyType.DOG:
+			SoundManager.play_sfx("DOGBARKSND")
+		EnemyType.SS:
+			SoundManager.play_sfx("SCABORGSND")
+		_:
+			SoundManager.play_sfx("HALTSND")
+
+# ============================================================================  
+# DAMAGE & DEATH
+# ============================================================================
+
+func take_damage(amount: int) -> void:
+	if is_dead:
+		return
+	
+	health -= amount
+	
+	if health <= 0:
+		die()
+	else:
+		# Pain state
+		state = State.PAIN
+		in_attack_mode = true
+		first_attack = true
+
+func die() -> void:
+	if is_dead:
+		return
+	
+	is_dead = true
+	state = State.DIE
+	
+	# Disable collision
+	if collision_shape:
+		collision_shape.set_deferred("disabled", true)
+	
+	# Play death sound
+	match enemy_type:
+		EnemyType.GUARD:
+			SoundManager.play_sfx("DEATHSCREAM1SND")
+		EnemyType.DOG:
+			SoundManager.play_sfx("DOGDEATHSND")
+		EnemyType.SS:
+			SoundManager.play_sfx("LEBENSND")
+		EnemyType.OFFICER:
+			SoundManager.play_sfx("NEINSOVASSND")
+		_:
+			SoundManager.play_sfx("DEATHSCREAM1SND")
+	
+	# Show death sprite
+	_show_death_sprite()
+	
+	# Emit signal
+	died.emit(self)
+	
+	# Remove after delay
+	await get_tree().create_timer(3.0).timeout
+	state = State.DEAD
+	queue_free()
+
+func _show_death_sprite() -> void:
+	if sprite == null:
+		return
+	
+	# Calculate death sprite
+	# Death sprite layout: PAIN_1(+40), DIE_1(+41), DIE_2(+42), DIE_3(+43), PAIN_2(+44), DEAD(+45)
+	var base = SPRITE_BASES.get(enemy_type, 48)
+	var death_sprite_idx = base + 45  # DEAD sprite is at offset +45
+	
+	var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, death_sprite_idx]
 	var img = Image.load_from_file(sprite_path)
-	if img == null:
-		push_warning("Enemy: missing sprite " + sprite_path)
-		return
+	if img != null:
+		sprite.texture = ImageTexture.create_from_image(img)
+	else:
+		sprite.visible = false
 
-	_sprite.texture = ImageTexture.create_from_image(img)
-	_sprite.centered = true
-	_sprite.pixel_size = 0.015
-	_sprite.axis = 2
-	_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	_sprite.transparent = true
-	_sprite.double_sided = false
-	_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+# ============================================================================
+# ANIMATION
+# ============================================================================
+
+func _update_animation(delta: float) -> void:
+	anim_timer += delta
+	
+	if anim_timer >= 0.15:
+		anim_timer = 0.0
+		anim_frame = (anim_frame + 1) % 4
+		_update_sprite()
+
+func _update_sprite() -> void:
+	if sprite == null or is_dead:
+		return
+	
+	# Calculate sprite index based on direction and frame
+	# Wolf3D sprite layout per enemy type:
+	# - 0-7: Standing sprites (8 directions: S_1 to S_8)
+	# - 8-15: Walk frame 1 (8 directions: W1_1 to W1_8)
+	# - 16-23: Walk frame 2 (8 directions: W2_1 to W2_8)
+	# - 24-31: Walk frame 3 (8 directions: W3_1 to W3_8)
+	# - 32-39: Walk frame 4 (8 directions: W4_1 to W4_8)
+	# - 40-45: Pain/Die sprites (PAIN_1, DIE_1, DIE_2, DIE_3, PAIN_2, DEAD)
+	# - 46-48: Shoot sprites (SHOOT1, SHOOT2, SHOOT3)
+	
+	var base = SPRITE_BASES.get(enemy_type, 48)
+	var sprite_idx = base
+	
+	# Get direction offset (0-7 for 8 directions)
+	var dir_offset = direction if direction != Dir.NODIR and direction < 8 else 0
+	
+	if state == State.STAND:
+		# Standing sprite - use direction
+		sprite_idx = base + dir_offset
+	elif state == State.CHASE or state == State.PATH:
+		# Walking sprites - 4 frames, each frame has 8 direction variants
+		# Frame 0: base+8 to base+15
+		# Frame 1: base+16 to base+23
+		# Frame 2: base+24 to base+31
+		# Frame 3: base+32 to base+39
+		var walk_frame = anim_frame % 4
+		sprite_idx = base + 8 + (walk_frame * 8) + dir_offset
+	elif state == State.SHOOT:
+		# Shoot sprites at base+46 to base+48
+		sprite_idx = base + 46 + (anim_frame % 3)
+	elif state == State.PAIN:
+		# Pain sprite at base+40
+		sprite_idx = base + 40
+	
+	var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, sprite_idx]
+	var img = Image.load_from_file(sprite_path)
+	if img != null:
+		sprite.texture = ImageTexture.create_from_image(img)
+
+# ============================================================================
+# SETUP
+# ============================================================================
+
+func setup(type: EnemyType, sprite_idx: int, sprite_folder: String) -> void:
+	enemy_type = type
+	standing_sprite_idx = sprite_idx
+	sprite_texture_folder = sprite_folder
+	health = HEALTH_VALUES.get(enemy_type, 25)
+	speed = SPEED_VALUES.get(enemy_type, 1.5)

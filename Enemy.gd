@@ -655,6 +655,31 @@ func _select_path_dir() -> void:
 	_select_chase_dir()
 	distance = 1.0
 
+func _is_position_blocked(pos: Vector3) -> bool:
+	"""Check if a position is blocked by walls or closed doors"""
+	if grid == null:
+		return false
+	
+	var check_x = int(floor(pos.x))
+	var check_z = int(floor(pos.z))
+	
+	if not grid.is_within_grid(check_x, check_z):
+		return true
+	
+	var tile_id = grid.tile_at(check_x, check_z)
+	
+	# Walls block movement
+	if tile_id >= 1 and tile_id <= 53:
+		return true
+	
+	# Closed doors block movement
+	if tile_id >= 90 and tile_id <= 101:
+		var door = _find_door_at(check_x, check_z)
+		if door and not door.is_open():
+			return true
+	
+	return false
+
 func _try_walk() -> bool:
 	if direction == Dir.NODIR:
 		return false
@@ -717,6 +742,12 @@ func _move_obj(move: float) -> void:
 	
 	var move_vec = DIR_VECTORS.get(direction, Vector3.ZERO) * move
 	var new_pos = position + move_vec
+	
+	# Check if new position is blocked by walls or doors
+	if _is_position_blocked(new_pos):
+		direction = Dir.NODIR
+		distance = 0.0
+		return
 	
 	# Check player collision
 	if player:
@@ -820,9 +851,17 @@ func _show_death_sprite() -> void:
 		return
 	
 	# Calculate death sprite
-	# Death sprite layout: PAIN_1(+40), DIE_1(+41), DIE_2(+42), DIE_3(+43), PAIN_2(+44), DEAD(+45)
+	# Death sprite layout varies by enemy type
+	# Humanoids: PAIN_1(+40), DIE_1(+41), DIE_2(+42), DIE_3(+43), PAIN_2(+44), DEAD(+45)
+	# Dog: 32 walk sprites + DIE_1(+32), DIE_2(+33), DIE_3(+34), DEAD(+35)
 	var base = SPRITE_BASES.get(enemy_type, 48)
-	var death_sprite_idx = base + 45  # DEAD sprite is at offset +45
+	var death_offset = 45  # Default for humanoid enemies
+	
+	# Dog has different sprite layout: 32 walk + 3 die + 1 dead + 3 jump = 39 total
+	if enemy_type == EnemyType.DOG:
+		death_offset = 35  # Dog DEAD sprite is at base+35 (97+35=132)
+	
+	var death_sprite_idx = base + death_offset
 	
 	var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, death_sprite_idx]
 	var img = Image.load_from_file(sprite_path)
@@ -844,47 +883,79 @@ func _update_animation(delta: float) -> void:
 		_update_sprite()
 
 func _update_sprite() -> void:
-	if sprite == null or is_dead:
+	if sprite == null or is_dead or player == null:
 		return
 	
 	# Calculate sprite index based on direction and frame
 	# Wolf3D sprite layout per enemy type:
-	# - 0-7: Standing sprites (8 directions: S_1 to S_8)
-	# - 8-15: Walk frame 1 (8 directions: W1_1 to W1_8)
-	# - 16-23: Walk frame 2 (8 directions: W2_1 to W2_8)
-	# - 24-31: Walk frame 3 (8 directions: W3_1 to W3_8)
-	# - 32-39: Walk frame 4 (8 directions: W4_1 to W4_8)
+	# Humanoids (Guard/Officer/SS/Mutant):
+	# - 0-7: Standing sprites (8 directions)
+	# - 8-39: Walk frames 1-4 (4 frames × 8 directions = 32 sprites)
 	# - 40-45: Pain/Die sprites (PAIN_1, DIE_1, DIE_2, DIE_3, PAIN_2, DEAD)
 	# - 46-48: Shoot sprites (SHOOT1, SHOOT2, SHOOT3)
+	# 
+	# Dog (different layout - no standing/shooting, no pain states):
+	# - 0-31: Walk frames 1-4 (4 frames × 8 directions = 32 sprites)
+	# - 32-34: Die sprites (DIE_1, DIE_2, DIE_3)
+	# - 35: DEAD sprite
+	# - 36-38: Jump sprites (JUMP1, JUMP2, JUMP3)
 	
 	var base = SPRITE_BASES.get(enemy_type, 48)
 	var sprite_idx = base
 	
-	# Get direction offset (0-7 for 8 directions)
-	var dir_offset = direction if direction != Dir.NODIR and direction < 8 else 0
+	# Calculate rotation based on viewing angle (CalcRotate from WL_DRAW.C)
+	# This determines which of the 8 rotations to show based on player's view
+	var rotation_offset = _calc_rotate()
 	
 	if state == State.STAND:
-		# Standing sprite - use direction
-		sprite_idx = base + dir_offset
+		sprite_idx = base + rotation_offset
 	elif state == State.CHASE or state == State.PATH:
-		# Walking sprites - 4 frames, each frame has 8 direction variants
-		# Frame 0: base+8 to base+15
-		# Frame 1: base+16 to base+23
-		# Frame 2: base+24 to base+31
-		# Frame 3: base+32 to base+39
 		var walk_frame = anim_frame % 4
-		sprite_idx = base + 8 + (walk_frame * 8) + dir_offset
+		if enemy_type == EnemyType.DOG:
+			sprite_idx = base + (walk_frame * 8) + rotation_offset
+		else:
+			sprite_idx = base + 8 + (walk_frame * 8) + rotation_offset
 	elif state == State.SHOOT:
-		# Shoot sprites at base+46 to base+48
 		sprite_idx = base + 46 + (anim_frame % 3)
 	elif state == State.PAIN:
-		# Pain sprite at base+40
 		sprite_idx = base + 40
 	
 	var sprite_path = "%sSPR_STAT_%d.png" % [sprite_texture_folder, sprite_idx]
 	var img = Image.load_from_file(sprite_path)
 	if img != null:
 		sprite.texture = ImageTexture.create_from_image(img)
+
+func _calc_rotate() -> int:
+	if player == null:
+		return 0
+	
+	var player_angle = 0.0
+	if player.has_node("Head/Camera3D"):
+		var camera = player.get_node("Head/Camera3D")
+		player_angle = camera.global_rotation.y
+	elif player.has_node("Camera3D"):
+		var camera = player.get_node("Camera3D")
+		player_angle = camera.global_rotation.y
+	else:
+		# Fallback: use player's rotation
+		player_angle = player.global_rotation.y
+	
+	# Calculate angle from enemy to player
+	var dx = position.x - player.global_position.x
+	var dz = position.z - player.global_position.z
+	var angle_to_player = atan2(dz, dx)
+	
+	var relative_angle = angle_to_player - player_angle
+	
+	while relative_angle < 0:
+		relative_angle += TAU
+	while relative_angle >= TAU:
+		relative_angle -= TAU
+	
+	var rotation = int((relative_angle + PI / 8.0) / (PI / 4.0))
+	rotation = rotation % 8
+	
+	return rotation
 
 # ============================================================================
 # SETUP

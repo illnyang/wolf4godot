@@ -113,22 +113,20 @@ func try_pickup(player: Player) -> bool:
 func _play_sound() -> void:
 	match pickup_type:
 		PickupType.FOOD, PickupType.HEALTH_KIT:
-			pass  # HEALTH1SND / HEALTH2SND
+			SoundManager.play_health_pickup()
 		PickupType.CLIP, PickupType.AMMO_BOX:
-			pass  # GETAMMOSND
-		PickupType.MACHINEGUN:
-			pass  # GETMACHINESND
-		PickupType.CHAINGUN:
-			pass  # GETGATLINGSND
+			SoundManager.play_ammo_pickup()
+		PickupType.MACHINEGUN, PickupType.CHAINGUN:
+			SoundManager.play_ammo_pickup()  # Weapon pickup uses ammo sound
 		PickupType.GOLD_KEY, PickupType.SILVER_KEY:
-			pass  # GETKEYSND
+			SoundManager.play_key_pickup()
 		PickupType.CROSS:
-			pass  # BONUS1SND
+			SoundManager.play_sound(SoundManager.SoundID.BONUS1SND)
 		PickupType.CHALICE:
-			pass  # BONUS2SND
+			SoundManager.play_sound(SoundManager.SoundID.BONUS2SND)
 		PickupType.BIBLE:
-			pass  # BONUS3SND
+			SoundManager.play_sound(SoundManager.SoundID.BONUS3SND)
 		PickupType.CROWN:
-			pass  # BONUS4SND
+			SoundManager.play_sound(SoundManager.SoundID.BONUS4SND)
 		PickupType.EXTRA_LIFE:
-			pass  # BONUS1UPSND
+			SoundManager.play_sound(SoundManager.SoundID.BONUS1UPSND)

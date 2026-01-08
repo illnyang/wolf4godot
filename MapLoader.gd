@@ -41,6 +41,35 @@ class L2Utils:
 
 	static func is_static(id: int) -> bool:
 		return id >= 23 and id <= 70
+	
+	static func is_pickup(id: int) -> bool:
+		# Pickups are statics that give bonuses (based on WL_ACT1.C statinfo array)
+		# Static ID = thing_id - 23 to get SPR_STAT_X index
+		var static_idx = id - 23
+		# Pickup items from statinfo:
+		# 6=alpo, 20=key1, 21=key2, 24=food, 25=firstaid, 26=clip,
+		# 27=machinegun, 28=chaingun, 29=cross, 30=chalice, 31=bible,
+		# 32=crown, 33=fullheal
+		return static_idx in [6, 20, 21, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
+	
+	static func get_pickup_type(id: int) -> int:
+		# Returns Pickup.PickupType enum value, or -1 if not a pickup
+		var static_idx = id - 23
+		match static_idx:
+			6: return 0   # FOOD (alpo/dog food gives 4hp)
+			20: return 7  # GOLD_KEY
+			21: return 8  # SILVER_KEY
+			24: return 0  # FOOD
+			25: return 1  # HEALTH_KIT
+			26: return 2  # CLIP
+			27: return 4  # MACHINEGUN
+			28: return 5  # CHAINGUN
+			29: return 9  # CROSS (100 pts)
+			30: return 10 # CHALICE (500 pts)
+			31: return 11 # BIBLE (1000 pts)
+			32: return 12 # CROWN (5000 pts)
+			33: return 13 # EXTRA_LIFE
+		return -1
 
 	static func get_static_idx(id: int) -> int:
 		return id - 23
@@ -351,27 +380,62 @@ func spawn_layer2() -> void:
 
 			elif L2Utils.is_static(id):
 				var static_idx = L2Utils.get_static_idx(id)
-				var sprite: Sprite3D = Sprite3D.new()
-
-				sprite.position = Vector3(x + 0.5, 0, y + 0.5)
 				
-				var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), static_idx]
-				var img = Image.load_from_file(sprite_path)
-				if img != null:
-					sprite.texture = ImageTexture.create_from_image(img)
+				# Check if this is a pickup item
+				if L2Utils.is_pickup(id):
+					# Create Pickup node with collision
+					var pickup = Pickup.new()
+					pickup.name = "Pickup_%d_%d" % [x, y]
+					pickup.position = Vector3(x + 0.5, 0, y + 0.5)
+					pickup.pickup_type = L2Utils.get_pickup_type(id)
+					
+					# Create collision shape
+					var collision = CollisionShape3D.new()
+					var shape = BoxShape3D.new()
+					shape.size = Vector3(0.5, 0.5, 0.5)
+					collision.shape = shape
+					pickup.add_child(collision)
+					
+					# Create sprite
+					var sprite: Sprite3D = Sprite3D.new()
+					sprite.name = "Sprite3D"
+					var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), static_idx]
+					var img = Image.load_from_file(sprite_path)
+					if img != null:
+						sprite.texture = ImageTexture.create_from_image(img)
+					sprite.centered = true
+					sprite.pixel_size = 0.015
+					sprite.axis = 2
+					sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+					sprite.transparent = true
+					sprite.double_sided = false
+					sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+					pickup.add_child(sprite)
+					pickup.sprite = sprite
+					
+					root_node.add_child(pickup)
 				else:
-					push_error("Failed to load sprite: " + sprite_path)
-					continue
-				
-				sprite.centered = true
-				sprite.pixel_size = 0.015
-				sprite.axis = 2 # Z-Axis
-				sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-				sprite.transparent = true
-				sprite.double_sided = false
-				sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+					# Regular static decoration (no pickup)
+					var sprite: Sprite3D = Sprite3D.new()
+					sprite.position = Vector3(x + 0.5, 0, y + 0.5)
+					
+					var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), static_idx]
+					var img = Image.load_from_file(sprite_path)
+					if img != null:
+						sprite.texture = ImageTexture.create_from_image(img)
+					else:
+						push_error("Failed to load sprite: " + sprite_path)
+						continue
+					
+					sprite.centered = true
+					sprite.pixel_size = 0.015
+					sprite.axis = 2
+					sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+					sprite.transparent = true
+					sprite.double_sided = false
+					sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 
-				root_node.add_child(sprite)
+					root_node.add_child(sprite)
 			
 			# Spawn enemies
 			elif L2Utils.is_enemy(id):

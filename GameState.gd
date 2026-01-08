@@ -61,8 +61,10 @@ func take_damage(amount: int) -> void:
 	var actual_damage = int(amount * get_damage_multiplier())
 	actual_damage = max(actual_damage, 1)  # Always at least 1 damage
 	
+	var old_health = health
 	health -= actual_damage
 	health = max(health, 0)
+	print("[DEBUG] take_damage: %d -> %d (damage: %d)" % [old_health, health, actual_damage])
 	health_changed.emit(health)
 	
 	if health <= 0:
@@ -72,8 +74,10 @@ func heal(amount: int) -> void:
 	if health <= 0:
 		return
 	
+	var old_health = health
 	health += amount
 	health = min(health, 100)
+	print("[DEBUG] heal: %d -> %d (healed: %d)" % [old_health, health, amount])
 	health_changed.emit(health)
 
 func die() -> void:

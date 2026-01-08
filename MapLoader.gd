@@ -54,21 +54,24 @@ class L2Utils:
 	
 	static func get_pickup_type(id: int) -> int:
 		# Returns Pickup.PickupType enum value, or -1 if not a pickup
+		# Pickup.PickupType: FOOD=0, HEALTH_KIT=1, CLIP=2, AMMO_BOX=3, 
+		# MACHINEGUN=4, CHAINGUN=5, GOLD_KEY=6, SILVER_KEY=7,
+		# CROSS=8, CHALICE=9, BIBLE=10, CROWN=11, EXTRA_LIFE=12
 		var static_idx = id - 23
 		match static_idx:
-			6: return 0   # FOOD (alpo/dog food gives 4hp)
-			20: return 7  # GOLD_KEY
-			21: return 8  # SILVER_KEY
+			6: return 0   # FOOD (alpo/dog food)
 			24: return 0  # FOOD
 			25: return 1  # HEALTH_KIT
 			26: return 2  # CLIP
 			27: return 4  # MACHINEGUN
 			28: return 5  # CHAINGUN
-			29: return 9  # CROSS (100 pts)
-			30: return 10 # CHALICE (500 pts)
-			31: return 11 # BIBLE (1000 pts)
-			32: return 12 # CROWN (5000 pts)
-			33: return 13 # EXTRA_LIFE
+			20: return 6  # GOLD_KEY
+			21: return 7  # SILVER_KEY
+			29: return 8  # CROSS (100 pts)
+			30: return 9  # CHALICE (500 pts)
+			31: return 10 # BIBLE (1000 pts)
+			32: return 11 # CROWN (5000 pts)
+			33: return 12 # EXTRA_LIFE
 		return -1
 
 	static func get_static_idx(id: int) -> int:

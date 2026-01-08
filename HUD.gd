@@ -73,7 +73,11 @@ func _load_assets() -> void:
 	# Load digit textures (blank = index 0, then 0-9 = index 1-10)
 	digit_textures.append(_load_pic("095_N_BLANKPIC.png"))  # Blank
 	for i in range(10):
-		digit_textures.append(_load_pic("%03d_N_%dPIC.png" % [96 + i, i]))
+		var pic = _load_pic("%03d_N_%dPIC.png" % [96 + i, i])
+		digit_textures.append(pic)
+		if pic == null:
+			push_error("WolfHUD: Failed to load digit %d" % i)
+	print("WolfHUD: Loaded %d digit textures" % digit_textures.size())
 	
 	# Load face textures (8 health levels x 3 variations = 24 faces)
 	# FACE1A=106, FACE1B=107, FACE1C=108, FACE2A=109... FACE8A=127
@@ -206,6 +210,10 @@ func _update_all() -> void:
 # ===== Original Wolf3D LatchNumber implementation =====
 # Right justifies and pads with blanks
 func _latch_number(digits: Array[TextureRect], width: int, number: int) -> void:
+	if digit_textures.size() < 11:
+		push_error("WolfHUD: Not enough digit textures loaded: %d" % digit_textures.size())
+		return
+	
 	var str_num = str(number)
 	var length = str_num.length()
 	
@@ -223,8 +231,11 @@ func _latch_number(digits: Array[TextureRect], width: int, number: int) -> void:
 	
 	while str_idx < length and digit_idx < digits.size():
 		var digit_char = str_num[str_idx]
-		var digit_value = digit_char.to_int()  # Convert "3" -> 3
-		digits[digit_idx].texture = digit_textures[digit_value + 1]  # +1 because index 0 is blank
+		var digit_value = digit_char.unicode_at(0) - 48  # '0' = 48 in ASCII
+		if digit_value >= 0 and digit_value <= 9:
+			digits[digit_idx].texture = digit_textures[digit_value + 1]  # +1 because index 0 is blank
+		else:
+			digits[digit_idx].texture = digit_textures[0]  # Blank for non-digits
 		digit_idx += 1
 		str_idx += 1
 

@@ -4,10 +4,11 @@ extends CharacterBody3D
 @export var map_loader: MapLoader    
 @export var radius: float = 0.28
 @export var skin: float = 0.001
-
+@onready var weapon_anim: AnimatedSprite2D = $CanvasLayer/WeponUI/AnimatedSprite2D
+@export var sprite_texture_folder: String = "user://assets/wolf3d/sprites/"
+@onready var weapon_manager = $CanvasLayer/WeaponUI/AnimatedSprite2D
 const SPEED := 7.0
 const TURN_SPEED := 1.5
-
 # Weapon fire rates (seconds between shots)
 const FIRE_RATES = {
 	GameState.Weapon.KNIFE: 0.5,
@@ -19,7 +20,7 @@ const FIRE_RATES = {
 # Shooting state
 var fire_cooldown: float = 0.0
 var is_firing: bool = false
-
+var current_weapon_name: String = "pistol"
 # Runtime
 var grid = null
 var tilex: int = 0
@@ -35,8 +36,10 @@ func _ready() -> void:
 	add_to_group("player")
 	current_hp = max_hp
 	emit_signal("hp_changed", current_hp, max_hp)
+	if weapon_anim.has_method("load_external_weapon_animations"):
+		weapon_anim.load_external_weapon_animations()
+	weapon_anim.animation_finished.connect(_on_weapon_animation_finished)
 	
-	# If not assigned in the editor, find MapLoader parent automatically
 	if map_loader == null:
 		var p = get_parent()
 		while p:
@@ -51,7 +54,8 @@ func _ready() -> void:
 		push_warning("Player: MapLoader not found; collisions disabled.")
 	
 	_update_tile_indices()
-
+	_update_weapon_visuals()
+	
 func _physics_process(delta: float) -> void:
 	# Update fire cooldown
 	if fire_cooldown > 0:
@@ -84,26 +88,39 @@ func _physics_process(delta: float) -> void:
 	_attempt_move(move_dir * SPEED * delta)
 
 func _try_shoot() -> void:
-	# Check cooldown
 	if fire_cooldown > 0:
 		return
-	
 	var weapon = GameState.weapon
-	
-	# Knife doesn't use ammo
+	_update_weapon_visuals()
 	if weapon != GameState.Weapon.KNIFE:
 		if not GameState.use_ammo():
-			# Out of ammo, auto-switches to knife
 			return
 	
-	# Set cooldown for next shot
 	fire_cooldown = FIRE_RATES.get(weapon, 0.2)
+	if weapon_anim.has_method("play_shoot"):
+		weapon_anim.play_shoot(current_weapon_name)
 	
-	# Calculate damage (random 15-30 like original Wolf3D)
 	var damage = randi_range(15, 30)
-	
-	# Perform raycast to find target
 	_perform_hitscan(damage, weapon)
+
+func _on_weapon_animation_finished() -> void:
+	if "_shoot" in weapon_anim.animation:
+		if weapon_anim.has_method("play_idle"):
+			weapon_anim.play_idle(current_weapon_name)
+
+func _update_weapon_visual_names(weapon_type) -> void:
+	match weapon_type:
+		GameState.Weapon.KNIFE: current_weapon_name = "knife"
+		GameState.Weapon.PISTOL: current_weapon_name = "pistol"
+		GameState.Weapon.MACHINEGUN: current_weapon_name = "machinegun"
+		GameState.Weapon.CHAINGUN: current_weapon_name = "chaingun"
+		
+func _update_weapon_visuals() -> void:
+	_update_weapon_visual_names(GameState.weapon)
+	if weapon_anim.has_method("play_idle"):
+		weapon_anim.play_idle(current_weapon_name)
+	if not weapon_anim.is_playing() or not weapon_anim.animation.ends_with("_shoot"):
+		weapon_anim.play(current_weapon_name + "_idle")
 
 func _try_interact() -> void:
 	if not map_loader or not grid: return

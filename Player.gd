@@ -244,3 +244,10 @@ func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
 			print("Hit: ", result.collider.name)
 	else:
 		print("Missed!")
+
+# Uncomment to run FPS benchmark:
+func _start_benchmark():
+	var PerfMonitor = preload("res://tests/performance_monitor.gd")
+	var perf = PerfMonitor.new()
+	add_child(perf)
+	perf.start_benchmark(10.0)

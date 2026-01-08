@@ -86,6 +86,10 @@ func _ready() -> void:
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
+	# Run extraction tests (output appears in console)
+	var TestRunner = preload("res://tests/test_extraction.gd")
+	TestRunner.run_all()
+	
 	_calculate_scale()
 	_load_pics()
 	_detect_games()

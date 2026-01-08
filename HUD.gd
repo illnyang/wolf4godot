@@ -73,7 +73,7 @@ func _load_assets() -> void:
 	# Load digit textures (blank = index 0, then 0-9 = index 1-10)
 	digit_textures.append(_load_pic("095_N_BLANKPIC.png"))  # Blank
 	for i in range(10):
-		digit_textures.append(_load_pic("0%02d_N_%dPIC.png" % [96 + i, i]))
+		digit_textures.append(_load_pic("%03d_N_%dPIC.png" % [96 + i, i]))
 	
 	# Load face textures (8 health levels x 3 variations = 24 faces)
 	# FACE1A=106, FACE1B=107, FACE1C=108, FACE2A=109... FACE8A=127
@@ -222,7 +222,8 @@ func _latch_number(digits: Array[TextureRect], width: int, number: int) -> void:
 		str_idx = length - width  # Skip leading digits if number too large
 	
 	while str_idx < length and digit_idx < digits.size():
-		var digit_value = int(str_num[str_idx])
+		var digit_char = str_num[str_idx]
+		var digit_value = digit_char.to_int()  # Convert "3" -> 3
 		digits[digit_idx].texture = digit_textures[digit_value + 1]  # +1 because index 0 is blank
 		digit_idx += 1
 		str_idx += 1

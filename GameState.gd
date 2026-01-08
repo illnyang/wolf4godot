@@ -15,11 +15,31 @@ var chosen_weapon: Weapon = Weapon.PISTOL
 # Level stats (reset each level)
 var level_stats: LevelStats = null
 
-# Current level
 var current_map: int = 0
 var episode: int = 0
 var selected_map_path: String = "user://assets/wolf3d/maps/json/00_Tunnels 1.json" 
-var selected_game: String = "wolf3d" 
+var selected_game: String = "wolf3d"
+
+# Difficulty system
+enum Difficulty { BABY, EASY, NORMAL, HARD }
+var difficulty: Difficulty = Difficulty.NORMAL
+
+# Difficulty modifiers
+func get_damage_multiplier() -> float:
+	match difficulty:
+		Difficulty.BABY: return 0.25
+		Difficulty.EASY: return 0.5
+		Difficulty.NORMAL: return 1.0
+		Difficulty.HARD: return 1.5
+	return 1.0
+
+func get_enemy_speed_multiplier() -> float:
+	match difficulty:
+		Difficulty.BABY: return 0.75
+		Difficulty.EASY: return 0.9
+		Difficulty.NORMAL: return 1.0
+		Difficulty.HARD: return 1.25
+	return 1.0 
 
 signal health_changed(new_health: int)
 signal ammo_changed(new_ammo: int)
@@ -37,9 +57,11 @@ func take_damage(amount: int) -> void:
 	if health <= 0:
 		return
 
-	# if difficulty == BABY: amount = amount / 4
+	# Apply difficulty multiplier
+	var actual_damage = int(amount * get_damage_multiplier())
+	actual_damage = max(actual_damage, 1)  # Always at least 1 damage
 	
-	health -= amount
+	health -= actual_damage
 	health = max(health, 0)
 	health_changed.emit(health)
 	

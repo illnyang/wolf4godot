@@ -147,10 +147,12 @@ func _extract_game(game_type: GameType) -> void:
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sprites")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sounds")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "music")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "pics")
 	
 	extract_maps()
 	extract_vswap()
 	extract_audio()  # Extract IMF music from AUDIOT
+	extract_vgagraph()  # Extract pics from VGAGRAPH
 	
 #func already_extracted() -> bool:
 	#var map_dir = DirAccess.open(output_path + "maps/json/")
@@ -923,3 +925,291 @@ func _convert_imf_to_wav() -> void:
 	dir.list_dir_end()
 	
 	print("-> Converted %d IMF files to WAV" % converted)
+
+
+#-----------------------------------------------------
+# VGAGRAPH Extraction - Extract pics from VGAGRAPH
+#-----------------------------------------------------
+# Based on original Wolf3D source code (ID_CA.C, ID_VH.C)
+# VGAGRAPH uses Huffman compression and VGA Mode X planar format
+
+# Picture names from GFXV_WL6.H (Wolf3D full version)
+# Pics start at chunk 3
+const PIC_NAMES = [
+	"H_BJPIC", "H_CASTLEPIC", "H_BLAZEPIC", "H_TOPWINDOWPIC", "H_LEFTWINDOWPIC",
+	"H_RIGHTWINDOWPIC", "H_BOTTOMINFOPIC", "C_OPTIONSPIC", "C_CURSOR1PIC", "C_CURSOR2PIC",
+	"C_NOTSELECTEDPIC", "C_SELECTEDPIC", "C_FXTITLEPIC", "C_DIGITITLEPIC", "C_MUSICTITLEPIC",
+	"C_MOUSELBACKPIC", "C_BABYMODEPIC", "C_EASYPIC", "C_NORMALPIC", "C_HARDPIC",
+	"C_LOADSAVEDISKPIC", "C_DISKLOADING1PIC", "C_DISKLOADING2PIC", "C_CONTROLPIC",
+	"C_CUSTOMIZEPIC", "C_LOADGAMEPIC", "C_SAVEGAMEPIC", "C_EPISODE1PIC", "C_EPISODE2PIC",
+	"C_EPISODE3PIC", "C_EPISODE4PIC", "C_EPISODE5PIC", "C_EPISODE6PIC", "C_CODEPIC",
+	"C_TIMECODEPIC", "C_LEVELPIC", "C_NAMEPIC", "C_SCOREPIC", "C_JOY1PIC", "C_JOY2PIC",
+	"L_GUYPIC", "L_COLONPIC", "L_NUM0PIC", "L_NUM1PIC", "L_NUM2PIC", "L_NUM3PIC",
+	"L_NUM4PIC", "L_NUM5PIC", "L_NUM6PIC", "L_NUM7PIC", "L_NUM8PIC", "L_NUM9PIC",
+	"L_PERCENTPIC", "L_APIC", "L_BPIC", "L_CPIC", "L_DPIC", "L_EPIC", "L_FPIC",
+	"L_GPIC", "L_HPIC", "L_IPIC", "L_JPIC", "L_KPIC", "L_LPIC", "L_MPIC", "L_NPIC",
+	"L_OPIC", "L_PPIC", "L_QPIC", "L_RPIC", "L_SPIC", "L_TPIC", "L_UPIC", "L_VPIC",
+	"L_WPIC", "L_XPIC", "L_YPIC", "L_ZPIC", "L_EXPOINTPIC", "L_APOSTROPHEPIC",
+	"L_GUY2PIC", "L_BJWINSPIC", "STATUSBARPIC", "TITLEPIC", "PG13PIC", "CREDITSPIC",
+	"HIGHSCORESPIC", "KNIFEPIC", "GUNPIC", "MACHINEGUNPIC", "GATLINGGUNPIC",
+	"NOKEYPIC", "GOLDKEYPIC", "SILVERKEYPIC", "N_BLANKPIC", "N_0PIC", "N_1PIC",
+	"N_2PIC", "N_3PIC", "N_4PIC", "N_5PIC", "N_6PIC", "N_7PIC", "N_8PIC", "N_9PIC",
+	"FACE1APIC", "FACE1BPIC", "FACE1CPIC", "FACE2APIC", "FACE2BPIC", "FACE2CPIC",
+	"FACE3APIC", "FACE3BPIC", "FACE3CPIC", "FACE4APIC", "FACE4BPIC", "FACE4CPIC",
+	"FACE5APIC", "FACE5BPIC", "FACE5CPIC", "FACE6APIC", "FACE6BPIC", "FACE6CPIC",
+	"FACE7APIC", "FACE7BPIC", "FACE7CPIC", "FACE8APIC", "GOTGATLINGPIC", "MUTANTBJPIC",
+	"PAUSEDPIC", "GETPSYCHEDPIC"
+]
+
+const STARTPICS = 3  # First pic chunk in VGAGRAPH
+
+func extract_vgagraph() -> void:
+	print("Extracting VGAGRAPH (pics)...")
+	
+	var vgadict_path = current_data_path + "VGADICT" + current_extension
+	var vgahead_path = current_data_path + "VGAHEAD" + current_extension
+	var vgagraph_path = current_data_path + "VGAGRAPH" + current_extension
+	
+	# Open VGADICT (Huffman dictionary)
+	var vgadict = FileAccess.open(vgadict_path, FileAccess.READ)
+	if vgadict == null:
+		print("-> No VGADICT found, skipping VGAGRAPH extraction")
+		return
+	
+	# Read Huffman table (255 nodes, each with 2 unsigned shorts = 4 bytes)
+	var huffman_table: Array = []
+	for i in range(255):
+		var bit0 = vgadict.get_16()
+		var bit1 = vgadict.get_16()
+		huffman_table.append([bit0, bit1])
+	vgadict.close()
+	print("-> Loaded Huffman dictionary (255 nodes)")
+	
+	# Open VGAHEAD (chunk offsets - 3 bytes each for Wolf3D)
+	var vgahead = FileAccess.open(vgahead_path, FileAccess.READ)
+	if vgahead == null:
+		print("-> No VGAHEAD found, skipping VGAGRAPH extraction")
+		return
+	
+	# Read 3-byte offsets
+	var offsets: Array[int] = []
+	while vgahead.get_position() < vgahead.get_length():
+		var b0 = vgahead.get_8()
+		var b1 = vgahead.get_8()
+		var b2 = vgahead.get_8()
+		var offset = b0 | (b1 << 8) | (b2 << 16)
+		# -1 (0xFFFFFF) means sparse/unused chunk
+		if offset == 0xFFFFFF:
+			offset = -1
+		offsets.append(offset)
+	vgahead.close()
+	print("-> Found %d chunk offsets" % offsets.size())
+	
+	# Open VGAGRAPH
+	var vgagraph = FileAccess.open(vgagraph_path, FileAccess.READ)
+	if vgagraph == null:
+		print("-> No VGAGRAPH found, skipping extraction")
+		return
+	
+	# First, read the picture table from chunk 0 (STRUCTPIC)
+	# Contains width/height for each pic
+	var pic_table = _read_pic_table(vgagraph, offsets, huffman_table)
+	if pic_table.is_empty():
+		print("-> Failed to read picture table")
+		vgagraph.close()
+		return
+	print("-> Loaded picture dimensions for %d pics" % pic_table.size())
+	
+	# Extract each pic (starting at STARTPICS)
+	var extracted = 0
+	var num_pics = mini(PIC_NAMES.size(), pic_table.size())
+	
+	for i in range(num_pics):
+		var chunk_idx = STARTPICS + i
+		if chunk_idx >= offsets.size() - 1:
+			break
+		
+		var offset = offsets[chunk_idx]
+		var next_offset = offsets[chunk_idx + 1]
+		
+		# Skip sparse chunks
+		if offset < 0:
+			continue
+		
+		# Find next valid offset for size calculation
+		var j = chunk_idx + 1
+		while j < offsets.size() and offsets[j] < 0:
+			j += 1
+		if j >= offsets.size():
+			break
+		next_offset = offsets[j]
+		
+		var compressed_size = next_offset - offset
+		if compressed_size <= 4:
+			continue
+		
+		# Read compressed data
+		vgagraph.seek(offset)
+		var expanded_len = vgagraph.get_32()  # First 4 bytes = expanded length
+		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
+		
+		# Huffman decompress
+		var decompressed = _huffman_expand(compressed_data, expanded_len, huffman_table)
+		if decompressed.size() == 0:
+			continue
+		
+		# Get dimensions from pic table
+		var pic_info = pic_table[i] if i < pic_table.size() else {"width": 0, "height": 0}
+		var width = pic_info.width
+		var height = pic_info.height
+		
+		if width <= 0 or height <= 0 or width > 320 or height > 200:
+			continue
+		
+		# Unmunge from VGA planar format
+		var linear_data = _unmunge_pic(decompressed, width, height)
+		if linear_data.size() != width * height:
+			continue
+		
+		# Save as PNG
+		var pic_name = PIC_NAMES[i] if i < PIC_NAMES.size() else "PIC_%03d" % i
+		_save_pic(linear_data, width, height, i, pic_name)
+		extracted += 1
+	
+	vgagraph.close()
+	print("-> Extracted %d pics to pics/" % extracted)
+
+
+func _read_pic_table(vgagraph: FileAccess, offsets: Array[int], huffman_table: Array) -> Array:
+	# Chunk 0 (STRUCTPIC) contains picture dimensions
+	# Each entry: 2 bytes width + 2 bytes height
+	var pic_table: Array = []
+	
+	if offsets.size() < 2 or offsets[0] < 0:
+		return pic_table
+	
+	var offset = offsets[0]
+	var next_offset = offsets[1]
+	
+	# Find next valid offset
+	var j = 1
+	while j < offsets.size() and offsets[j] < 0:
+		j += 1
+	if j >= offsets.size():
+		return pic_table
+	next_offset = offsets[j]
+	
+	var compressed_size = next_offset - offset
+	if compressed_size <= 4:
+		return pic_table
+	
+	vgagraph.seek(offset)
+	var expanded_len = vgagraph.get_32()
+	var compressed_data = vgagraph.get_buffer(compressed_size - 4)
+	
+	var decompressed = _huffman_expand(compressed_data, expanded_len, huffman_table)
+	if decompressed.size() == 0:
+		return pic_table
+	
+	# Parse width/height pairs
+	var pos = 0
+	while pos + 3 < decompressed.size():
+		var width = decompressed.decode_u16(pos)
+		var height = decompressed.decode_u16(pos + 2)
+		pic_table.append({"width": width, "height": height})
+		pos += 4
+	
+	return pic_table
+
+
+func _huffman_expand(source: PackedByteArray, expanded_len: int, huffman_table: Array) -> PackedByteArray:
+	# Huffman decompression based on CAL_HuffExpand from ID_CA.C
+	var result = PackedByteArray()
+	result.resize(expanded_len)
+	
+	if source.size() == 0 or expanded_len == 0:
+		return PackedByteArray()
+	
+	var src_pos = 0
+	var dest_pos = 0
+	var node_idx = 254  # Head node is always 254
+	
+	while dest_pos < expanded_len and src_pos < source.size():
+		var byte_val = source[src_pos]
+		src_pos += 1
+		
+		for bit in range(8):
+			if dest_pos >= expanded_len:
+				break
+			
+			var bit_val = (byte_val >> bit) & 1
+			var next_node = huffman_table[node_idx][bit_val]
+			
+			if next_node < 256:
+				# It's a byte value
+				result[dest_pos] = next_node
+				dest_pos += 1
+				node_idx = 254  # Back to head
+			else:
+				# It's a node pointer (subtract 256 to get node index)
+				node_idx = next_node - 256
+				if node_idx >= 255:
+					node_idx = 254  # Safety: reset to head
+	
+	return result
+
+
+func _unmunge_pic(data: PackedByteArray, width: int, height: int) -> PackedByteArray:
+	# Reverse the VL_MungePic operation from ID_VH.C
+	# VGA Mode X format: data is stored as 4 separate planes
+	# Plane 0: pixels 0, 4, 8, 12... (every 4th pixel starting at 0)
+	# Plane 1: pixels 1, 5, 9, 13... (every 4th pixel starting at 1)
+	# etc.
+	
+	var result = PackedByteArray()
+	result.resize(width * height)
+	
+	if data.size() < width * height:
+		# Not enough data, return as-is (non-planar format)
+		return data
+	
+	# Width must be divisible by 4 for planar format
+	if width % 4 != 0:
+		# Not planar format, return as-is
+		return data
+	
+	var pwidth = width / 4  # Width of each plane
+	var src_pos = 0
+	
+	for plane in range(4):
+		for y in range(height):
+			for x in range(pwidth):
+				if src_pos < data.size():
+					var dest_x = x * 4 + plane
+					var dest_idx = y * width + dest_x
+					if dest_idx < result.size():
+						result[dest_idx] = data[src_pos]
+				src_pos += 1
+	
+	return result
+
+
+func _save_pic(data: PackedByteArray, width: int, height: int, pic_id: int, name: String) -> void:
+	# Create image with Wolf3D palette
+	var img = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	
+	for y in range(height):
+		for x in range(width):
+			var idx = y * width + x
+			if idx < data.size():
+				var pal_idx = data[idx]
+				if pal_idx < WOLF_PALETTE.size():
+					var color = WOLF_PALETTE[pal_idx]
+					img.set_pixel(x, y, Color8(color[0], color[1], color[2], 255))
+				else:
+					img.set_pixel(x, y, Color8(0, 0, 0, 255))
+	
+	var filename = "%spics/%03d_%s.png" % [current_output_path, pic_id, name]
+	var err = img.save_png(filename)
+	if err != OK:
+		print("   Failed to save: ", filename)

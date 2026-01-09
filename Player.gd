@@ -40,6 +40,9 @@ func _ready() -> void:
 		weapon_anim.load_external_weapon_animations()
 	weapon_anim.animation_finished.connect(_on_weapon_animation_finished)
 	
+	# Connect to GameState death signal
+	GameState.player_died.connect(die)
+	
 	if map_loader == null:
 		var p = get_parent()
 		while p:
@@ -132,9 +135,43 @@ func _try_interact() -> void:
 	var tx = int(floor(target_pos.x))
 	var tz = int(floor(target_pos.z))
 	
+	# Check if player is inside elevator (standing on tile adjacent to elevator door)
+	var player_tx = int(floor(position.x))
+	var player_tz = int(floor(position.z))
+	if _is_inside_elevator(player_tx, player_tz):
+		# Check if activating a wall (the elevator switch)
+		var target_tile = grid.tile_at(tx, tz)
+		if map_loader.L1Utils.is_wall(target_tile):
+			_trigger_level_complete()
+			return
+	
 	var door_node = _find_door_at_tile(tx, tz)
 	if door_node:
 		door_node.interact()
+
+func _is_inside_elevator(px: int, pz: int) -> bool:
+	# Check if any adjacent tile is an elevator door
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			if dx == 0 and dz == 0:
+				continue
+			var check_tile = grid.tile_at(px + dx, pz + dz)
+			if map_loader.L1Utils.is_elevator_door(check_tile):
+				return true
+	return false
+
+func _trigger_level_complete() -> void:
+	# Play level done sound
+	SoundManager.play_sound(SoundManager.SoundID.LEVELDONESND)
+	
+	# Show level complete screen
+	var level_complete_script = preload("res://LevelComplete.gd")
+	var level_complete = CanvasLayer.new()
+	level_complete.set_script(level_complete_script)
+	get_tree().root.add_child(level_complete)
+	
+	# Pause the game (freeze gameplay while showing stats)
+	get_tree().paused = true
 
 func _find_door_at_tile(tx: int, tz: int) -> Node3D:
 	var all_doors = get_tree().get_nodes_in_group("doors")
@@ -201,8 +238,8 @@ func _resolve_box_collision(tx: int, tz: int, target_x: float, target_z: float) 
 func _update_tile_indices() -> void:
 	tilex = int(floor(position.x))
 	tiley = int(floor(position.z))
-func take_damage(amount: int) -> void:
-	GameState.take_damage(amount)
+func take_damage(amount: int, attacker: Node3D = null) -> void:
+	GameState.take_damage(amount, attacker)
 
 func heal(amount: int) -> void:
 	GameState.heal(amount)
@@ -210,7 +247,9 @@ func heal(amount: int) -> void:
 func die() -> void:
 	print("Player died")
 	emit_signal("died")
-	queue_free() # or respawn later
+	# Disable player controls during death - GameState handles level restart
+	set_physics_process(false)
+	set_process_input(false)
 
 func sign(v: float) -> int:
 	return -1 if v < 0 else 1
@@ -251,3 +290,4 @@ func _start_benchmark():
 	var perf = PerfMonitor.new()
 	add_child(perf)
 	perf.start_benchmark(10.0)
+	

@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://w2asrbrmjqgp"]
 
 [ext_resource type="Script" uid="uid://3jkxn7nlcyxs" path="res://Player.gd" id="1_xhfnw"]
-[ext_resource type="Script" path="res://WeaponManager.gd" id="2_kpjcp"]
+[ext_resource type="Script" uid="uid://srdoravbmo0r" path="res://WeaponManager.gd" id="2_kpjcp"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_xhfnw"]
 radius = 0.28

@@ -14,11 +14,17 @@ static func run_all() -> Dictionary:
 	
 	print("=== Running Extraction Tests ===")
 	
+	# Basic existence tests
 	_test_pics_exist(results)
 	_test_pics_dimensions(results)
 	_test_walls_exist(results)
 	_test_maps_structure(results)
 	_test_sounds_format(results)
+	
+	# Pattern validation tests (check files match expected format)
+	_test_pic_naming_pattern(results)
+	_test_png_headers(results)
+	_test_wall_dimensions(results)
 	
 	print("=== Results: %d passed, %d failed ===" % [results.passed, results.failed])
 	for error in results.errors:
@@ -157,3 +163,102 @@ static func _test_sounds_format(results: Dictionary) -> void:
 	else:
 		results.failed += 1
 		results.errors.append("Expected 40+ sounds, got %d" % count)
+
+
+# ===== PATTERN VALIDATION TESTS =====
+# Verify files match expected patterns, not just existence
+
+static func _test_pic_naming_pattern(results: Dictionary) -> void:
+	# All pics should follow pattern: NNN_NAME.png where NNN is 3-digit number
+	var dir = DirAccess.open("user://assets/wolf3d/pics/")
+	if dir == null:
+		results.failed += 1
+		results.errors.append("Pics directory not found for pattern test")
+		return
+	
+	var valid = 0
+	var invalid = 0
+	var regex = RegEx.new()
+	regex.compile("^\\d{3}_[A-Z0-9_]+\\.png$")
+	
+	dir.list_dir_begin()
+	var file = dir.get_next()
+	while file != "":
+		if file.ends_with(".png"):
+			if regex.search(file):
+				valid += 1
+			else:
+				invalid += 1
+		file = dir.get_next()
+	
+	if invalid == 0:
+		results.passed += 1
+		print("  PASS: Pic naming pattern (all %d match NNN_NAME.png)" % valid)
+	else:
+		results.failed += 1
+		results.errors.append("%d pics don't match pattern NNN_NAME.png" % invalid)
+
+
+static func _test_png_headers(results: Dictionary) -> void:
+	# Verify PNG files have valid PNG headers (magic bytes)
+	var path = ProjectSettings.globalize_path("user://assets/wolf3d/pics/")
+	var dir = DirAccess.open(path)
+	if dir == null:
+		results.failed += 1
+		results.errors.append("Cannot open pics for header check")
+		return
+	
+	var checked = 0
+	var valid = 0
+	var png_magic = PackedByteArray([0x89, 0x50, 0x4E, 0x47])  # PNG header
+	
+	dir.list_dir_begin()
+	var file = dir.get_next()
+	while file != "" and checked < 10:  # Sample first 10 files
+		if file.ends_with(".png"):
+			var f = FileAccess.open(path + "/" + file, FileAccess.READ)
+			if f:
+				var header = f.get_buffer(4)
+				if header == png_magic:
+					valid += 1
+				f.close()
+				checked += 1
+		file = dir.get_next()
+	
+	if valid == checked and checked > 0:
+		results.passed += 1
+		print("  PASS: PNG headers valid (%d/%d)" % [valid, checked])
+	else:
+		results.failed += 1
+		results.errors.append("PNG header check failed: %d/%d valid" % [valid, checked])
+
+
+static func _test_wall_dimensions(results: Dictionary) -> void:
+	# All wall textures should be exactly 64x64
+	var path = ProjectSettings.globalize_path("user://assets/wolf3d/walls/")
+	var dir = DirAccess.open(path)
+	if dir == null:
+		results.failed += 1
+		results.errors.append("Cannot open walls for dimension check")
+		return
+	
+	var correct = 0
+	var wrong = 0
+	
+	dir.list_dir_begin()
+	var file = dir.get_next()
+	while file != "":
+		if file.ends_with(".png"):
+			var img = Image.load_from_file(path + "/" + file)
+			if img and img.get_width() == 64 and img.get_height() == 64:
+				correct += 1
+			elif img:
+				wrong += 1
+		file = dir.get_next()
+	
+	if wrong == 0 and correct > 0:
+		results.passed += 1
+		print("  PASS: Wall dimensions (all %d are 64x64)" % correct)
+	else:
+		results.failed += 1
+		results.errors.append("%d walls not 64x64" % wrong)

@@ -196,6 +196,7 @@ func _connect_signals() -> void:
 	GameState.score_changed.connect(_on_score_changed)
 	GameState.keys_changed.connect(_on_keys_changed)
 	GameState.weapon_changed.connect(_on_weapon_changed)
+	GameState.player_died.connect(_on_player_died)
 
 func _update_all() -> void:
 	_draw_level(GameState.current_map + 1)
@@ -248,7 +249,8 @@ func _draw_score(score: int) -> void:
 	_latch_number(score_digits, 6, score)
 
 func _draw_lives(lives: int) -> void:
-	_latch_number(lives_digits, 1, lives)
+	# Clamp to 0 minimum (don't show negative during game over)
+	_latch_number(lives_digits, 1, max(lives, 0))
 
 func _draw_health(health: int) -> void:
 	_latch_number(health_digits, 3, health)
@@ -333,6 +335,10 @@ func _on_keys_changed(new_keys: int) -> void:
 
 func _on_weapon_changed(new_weapon: GameState.Weapon) -> void:
 	_draw_weapon()
+
+func _on_player_died() -> void:
+	# Force death face immediately
+	_draw_face()
 
 # ===== Process for face animation =====
 

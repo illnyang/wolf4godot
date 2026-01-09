@@ -12,6 +12,7 @@ var start_pos: Vector3 = Vector3.ZERO
 func _ready() -> void:
 	add_to_group("doors")
 	start_pos = position
+
 func _process(delta: float) -> void:
 	match current_state:
 		State.OPENING:
@@ -30,12 +31,17 @@ func _process(delta: float) -> void:
 			_apply_slide()
 			if open_ratio <= 0.0:
 				current_state = State.CLOSED
+
 func _apply_slide() -> void:
 	position = start_pos + (transform.basis.x * open_ratio * 0.95)
+
 func interact() -> void:
 	if current_state == State.CLOSED or current_state == State.CLOSING:
 		current_state = State.OPENING
+		SoundManager.play_sound(SoundManager.SoundID.OPENDOORSND)
 	elif current_state == State.OPEN:
 		current_state = State.CLOSING
+
 func is_open() -> bool:
 	return open_ratio > 0.8
+

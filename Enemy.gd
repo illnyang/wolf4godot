@@ -363,9 +363,9 @@ func _t_shoot() -> void:
 		
 		damage = max(1, damage)
 		
-		# Deal damage to player
+		# Deal damage to player (pass self as attacker for death sequence)
 		if player.has_method("take_damage"):
-			player.take_damage(damage)
+			player.take_damage(damage, self)
 		
 		# Play sound
 		SoundManager.play_sfx("NAZIFIRESND")
@@ -385,8 +385,9 @@ func _t_bite() -> void:
 		if randi() % 256 < 180:
 			var damage = randi() % 16
 			damage = max(1, damage)
+			# Pass self as attacker for death sequence
 			if player.has_method("take_damage"):
-				player.take_damage(damage)
+				player.take_damage(damage, self)
 
 # ============================================================================
 # DETECTION (Based on WL_STATE.C)

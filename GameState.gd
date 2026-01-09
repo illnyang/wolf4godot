@@ -17,29 +17,40 @@ var level_stats: LevelStats = null
 
 var current_map: int = 0
 var episode: int = 0
-var selected_map_path: String = "user://assets/wolf3d/maps/json/00_Tunnels 1.json" 
+var selected_map_path: String = "user://assets/wolf3d/maps/json/00_Tunnels 1.json"
 var selected_game: String = "wolf3d"
 
 # Difficulty system
 enum Difficulty { BABY, EASY, NORMAL, HARD }
 var difficulty: Difficulty = Difficulty.NORMAL
 
+
 # Difficulty modifiers
 func get_damage_multiplier() -> float:
 	match difficulty:
-		Difficulty.BABY: return 0.25
-		Difficulty.EASY: return 0.5
-		Difficulty.NORMAL: return 1.0
-		Difficulty.HARD: return 1.5
+		Difficulty.BABY:
+			return 0.25
+		Difficulty.EASY:
+			return 0.5
+		Difficulty.NORMAL:
+			return 1.0
+		Difficulty.HARD:
+			return 1.5
 	return 1.0
+
 
 func get_enemy_speed_multiplier() -> float:
 	match difficulty:
-		Difficulty.BABY: return 0.75
-		Difficulty.EASY: return 0.9
-		Difficulty.NORMAL: return 1.0
-		Difficulty.HARD: return 1.25
-	return 1.0 
+		Difficulty.BABY:
+			return 0.75
+		Difficulty.EASY:
+			return 0.9
+		Difficulty.NORMAL:
+			return 1.0
+		Difficulty.HARD:
+			return 1.25
+	return 1.0
+
 
 signal health_changed(new_health: int)
 signal ammo_changed(new_ammo: int)
@@ -48,107 +59,143 @@ signal score_changed(new_score: int)
 signal keys_changed(new_keys: int)
 signal weapon_changed(new_weapon: Weapon)
 
+
 func _ready():
 	level_stats = LevelStats.new()
 	add_child(level_stats)
 
+
 # ===== HEALTH SYSTEM =====
-func take_damage(amount: int) -> void:
+signal player_died
+signal damage_taken(amount: int)  # For screen flash
+
+# Track who killed the player for death camera
+var last_attacker: Node3D = null
+
+func take_damage(amount: int, attacker: Node3D = null) -> void:
 	if health <= 0:
 		return
 
 	# Apply difficulty multiplier
 	var actual_damage = int(amount * get_damage_multiplier())
 	actual_damage = max(actual_damage, 1)  # Always at least 1 damage
-	
+
 	var old_health = health
 	health -= actual_damage
 	health = max(health, 0)
 	print("[DEBUG] take_damage: %d -> %d (damage: %d)" % [old_health, health, actual_damage])
 	health_changed.emit(health)
 	
+	# Play pain sound and emit for screen flash
+	SoundManager.play_sound(SoundManager.SoundID.NAZIHITPLAYERSND)
+	damage_taken.emit(actual_damage)
+	
+	# Track attacker for death sequence
+	if attacker:
+		last_attacker = attacker
+
 	if health <= 0:
+		player_died.emit()
 		die()
+
 
 func heal(amount: int) -> void:
 	if health <= 0:
 		return
-	
+
 	var old_health = health
 	health += amount
 	health = min(health, 100)
 	print("[DEBUG] heal: %d -> %d (healed: %d)" % [old_health, health, amount])
 	health_changed.emit(health)
 
+
+signal restart_level_requested
+
 func die() -> void:
 	lives -= 1
 	lives_changed.emit(lives)
-	
+
 	if lives >= 0:
-		health = 100
-		weapon = best_weapon
-		chosen_weapon = best_weapon
-		ammo = 8
-		keys = 0
+		# DON'T reset stats here - keep health at 0 so death face shows
+		# Stats will be reset when level reloads via start_level()
 		
-		health_changed.emit(health)
-		ammo_changed.emit(ammo)
-		weapon_changed.emit(weapon)
-		keys_changed.emit(keys)
+		# Emit signal - DeathSequence handles the death animation and restart
+		restart_level_requested.emit()
 	else:
 		game_over()
 
+
+# Called when level restarts after death (or at start of any level)
+func reset_for_respawn() -> void:
+	health = 100
+	weapon = best_weapon
+	chosen_weapon = best_weapon
+	ammo = 8
+	keys = 0
+
+	health_changed.emit(health)
+	ammo_changed.emit(ammo)
+	weapon_changed.emit(weapon)
+	keys_changed.emit(keys)
+
+
 func game_over() -> void:
 	print("GAME OVER")
-	# Handle game over logic
+	# DeathSequence handles game over screen
+
 
 # ===== AMMO SYSTEM =====
 func give_ammo(amount: int) -> void:
 	if ammo == 99:
 		return
-	
+
 	# If had no ammo and wasn't attacking, switch to chosen weapon
-	var had_no_ammo = (ammo == 0)
-	
+	var had_no_ammo = ammo == 0
+
 	ammo += amount
 	ammo = min(ammo, 99)
 	ammo_changed.emit(ammo)
-	
+
 	if had_no_ammo and weapon == Weapon.KNIFE:
 		weapon = chosen_weapon
 		weapon_changed.emit(weapon)
+
 
 func use_ammo(amount: int = 1) -> bool:
 	if ammo >= amount:
 		ammo -= amount
 		ammo_changed.emit(ammo)
-		
+
 		# Auto-switch to knife if out of ammo
 		if ammo == 0:
 			weapon = Weapon.KNIFE
 			weapon_changed.emit(weapon)
-		
+
 		return true
 	return false
+
 
 # ===== WEAPON SYSTEM =====
 func give_weapon(new_weapon: Weapon) -> void:
 	give_ammo(6)
-	
+
 	if new_weapon > best_weapon:
 		best_weapon = new_weapon
 		weapon = new_weapon
 		chosen_weapon = new_weapon
 		weapon_changed.emit(weapon)
 
+
 func change_weapon(new_weapon: Weapon) -> void:
 	if ammo == 0 and new_weapon != Weapon.KNIFE:
 		return  # Can't switch without ammo
-	
+
 	if new_weapon <= best_weapon:
 		weapon = new_weapon
 		chosen_weapon = new_weapon
 		weapon_changed.emit(weapon)
+
 
 # ===== KEYS SYSTEM =====
 func give_key(key_index: int) -> void:
@@ -156,28 +203,33 @@ func give_key(key_index: int) -> void:
 	keys |= (1 << key_index)
 	keys_changed.emit(keys)
 
+
 func has_key(key_index: int) -> bool:
 	return (keys & (1 << key_index)) != 0
+
 
 # ===== SCORE SYSTEM =====
 const EXTRA_LIFE_POINTS = 40000
 
 var next_extra_life: int = EXTRA_LIFE_POINTS
 
+
 func give_points(points: int) -> void:
 	score += points
 	score_changed.emit(score)
-	
+
 	# Check for extra life
 	while score >= next_extra_life:
 		next_extra_life += EXTRA_LIFE_POINTS
 		give_extra_life()
+
 
 func give_extra_life() -> void:
 	if lives < 9:
 		lives += 1
 		lives_changed.emit(lives)
 		# Play 1-up sound
+
 
 # ===== PICKUP FUNCTIONS =====
 func pickup_health_potion() -> bool:
@@ -186,11 +238,13 @@ func pickup_health_potion() -> bool:
 	heal(25)
 	return true
 
+
 func pickup_food() -> bool:
 	if health >= 100:
 		return false
 	heal(10)
 	return true
+
 
 func pickup_clip() -> bool:
 	if ammo >= 99:
@@ -198,15 +252,17 @@ func pickup_clip() -> bool:
 	give_ammo(8)
 	return true
 
+
 func pickup_treasure(value: int) -> void:
 	give_points(value)
 	level_stats.treasure_count += 1
+
 
 # ===== LEVEL MANAGEMENT =====
 func start_new_game(starting_episode: int = 0, starting_level: int = 0) -> void:
 	episode = starting_episode
 	current_map = starting_level
-	
+
 	health = 100
 	lives = 3
 	ammo = 8
@@ -216,7 +272,7 @@ func start_new_game(starting_episode: int = 0, starting_level: int = 0) -> void:
 	best_weapon = Weapon.PISTOL
 	chosen_weapon = Weapon.PISTOL
 	next_extra_life = EXTRA_LIFE_POINTS
-	
+
 	# Emit all signals
 	health_changed.emit(health)
 	lives_changed.emit(lives)
@@ -225,10 +281,12 @@ func start_new_game(starting_episode: int = 0, starting_level: int = 0) -> void:
 	keys_changed.emit(keys)
 	weapon_changed.emit(weapon)
 
+
 func start_level() -> void:
 	level_stats.start_level()
 	keys = 0  # Keys reset each level
 	keys_changed.emit(keys)
+
 
 func complete_level() -> void:
 	# stats for end-of-level screen

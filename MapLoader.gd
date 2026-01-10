@@ -168,6 +168,34 @@ class L2Utils:
 	# Dead guard decoration
 	static func is_dead_guard(id: int) -> bool:
 		return id == 124
+	
+	# Check if enemy should spawn for current difficulty
+	# Original Wolf3D skips medium/hard enemies if difficulty is too low
+	static func should_spawn_for_difficulty(id: int) -> bool:
+		var diff = GameState.difficulty
+		
+		# Guard: easy 108-115, med 144-151, hard 180-187
+		if id >= 180 and id <= 187: return diff >= GameState.Difficulty.HARD
+		if id >= 144 and id <= 151: return diff >= GameState.Difficulty.NORMAL
+		
+		# Officer: easy 116-123, med 152-159, hard 188-195
+		if id >= 188 and id <= 195: return diff >= GameState.Difficulty.HARD
+		if id >= 152 and id <= 159: return diff >= GameState.Difficulty.NORMAL
+		
+		# SS: easy 126-133, med 162-169, hard 198-205
+		if id >= 198 and id <= 205: return diff >= GameState.Difficulty.HARD
+		if id >= 162 and id <= 169: return diff >= GameState.Difficulty.NORMAL
+		
+		# Dog: easy 134-141, med 170-177, hard 206-213
+		if id >= 206 and id <= 213: return diff >= GameState.Difficulty.HARD
+		if id >= 170 and id <= 177: return diff >= GameState.Difficulty.NORMAL
+		
+		# Mutant: easy 216-223, med 234-241, hard 252-259
+		if id >= 252 and id <= 259: return diff >= GameState.Difficulty.HARD
+		if id >= 234 and id <= 241: return diff >= GameState.Difficulty.NORMAL
+		
+		# Easy difficulty enemies and bosses always spawn
+		return true
 
 
 class MapGrid:
@@ -442,6 +470,10 @@ func spawn_layer2() -> void:
 			
 			# Spawn enemies
 			elif L2Utils.is_enemy(id):
+				# Skip enemies that shouldn't spawn on current difficulty
+				if not L2Utils.should_spawn_for_difficulty(id):
+					continue
+				
 				var enemy_info = L2Utils.get_enemy_info(id)
 				var enemy_type = enemy_info[0]
 				var direction = enemy_info[1]

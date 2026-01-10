@@ -20,9 +20,10 @@ const COLOR_STRIPE = Color(0.20, 0.10, 0.37)
 const COLOR_TEXT = Color(0.9, 0.9, 0.9)
 const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)  # Yellow
 const COLOR_DEACTIVE = Color(0.5, 0.5, 0.5)
+const COLOR_VIEW_BORDER = Color(0.0, 65.0/255.0, 65.0/255.0)  # Authentic teal/cyan
 
 # Menu states
-enum MenuState { TITLE, MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT }
+enum MenuState { TITLE, MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE }
 var current_state: MenuState = MenuState.TITLE
 
 # Selection indices
@@ -39,6 +40,9 @@ var selected_episode: int = 0
 
 # Scale factor for 320x200 -> current resolution
 var scale_factor: float = 1.0
+
+# Store view size before entering Change View screen
+var pre_view_size: int = 15
 
 # Loaded textures
 var pics: Dictionary = {}
@@ -586,6 +590,10 @@ func _input(event: InputEvent) -> void:
 		_handle_up()
 	elif event.is_action_pressed("ui_down"):
 		_handle_down()
+	elif event.is_action_pressed("ui_left"):
+		_handle_left()
+	elif event.is_action_pressed("ui_right"):
+		_handle_right()
 
 
 func _handle_accept() -> void:
@@ -602,6 +610,8 @@ func _handle_accept() -> void:
 			_show_map_select()
 		MenuState.MAP_SELECT:
 			_start_game()
+		MenuState.VIEW_SIZE:
+			_show_main_menu()  # Save and return
 
 
 func _handle_main_menu_select() -> void:
@@ -621,8 +631,8 @@ func _handle_main_menu_select() -> void:
 			pass
 		4:  # Save Game - disabled
 			pass
-		5:  # Change View - placeholder
-			pass
+		5:  # Change View
+			_show_view_size_screen()
 		6:  # Read This! - placeholder
 			pass
 		7:  # View Scores - placeholder
@@ -643,6 +653,87 @@ func _handle_cancel() -> void:
 			_show_episode_select()
 		MenuState.MAP_SELECT:
 			_show_difficulty_select()
+		MenuState.VIEW_SIZE:
+			GameState.set_view_size(pre_view_size)
+			_show_main_menu()
+
+
+
+func _show_view_size_screen() -> void:
+	current_state = MenuState.VIEW_SIZE
+	pre_view_size = GameState.view_size
+	
+	_clear_menu_items()
+	
+	# Full screen background - RGB(0, 65, 65)
+	var bg = ColorRect.new()
+	bg.name = "ViewSizeBG"
+	bg.color = COLOR_VIEW_BORDER
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	
+	# Viewport preview (black box)
+	var preview = ColorRect.new()
+	preview.name = "ViewportPreview"
+	preview.color = Color.BLACK
+	add_child(preview)
+	
+	# Instructions at bottom
+	var text_y_start = 160 * scale_factor
+	var instructions = [
+		"Use arrows to size",
+		"ENTER to accept",
+		"ESC to cancel"
+	]
+	
+	for i in range(instructions.size()):
+		var label = Label.new()
+		label.name = "ViewSizeInstr_%d" % i
+		label.text = instructions[i]
+		label.add_theme_font_size_override("font_size", int(11 * scale_factor))
+		label.add_theme_color_override("font_color", COLOR_TEXT)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.position = Vector2(0, text_y_start + i * 12 * scale_factor)
+		label.size = Vector2(get_viewport().get_visible_rect().size.x, 15 * scale_factor)
+		add_child(label)
+	
+	_update_view_size_preview()
+	
+	cursor_rect.visible = false
+
+
+func _update_view_size_preview() -> void:
+	var preview = get_node_or_null("ViewportPreview") as ColorRect
+	if not preview:
+		return
+	
+	# Get view dimensions in original coordinates
+	var view_width = GameState.get_view_width()
+	var view_height = GameState.get_view_height()
+	
+	# Game area is 160 pixels high
+	var game_area_height = GameState.GAME_AREA_HEIGHT
+	
+	# Calculate centered position within the game area (top 160 pixels)
+	var viewport_x = (ORIG_WIDTH - view_width) / 2.0
+	var viewport_y = (game_area_height - view_height) / 2.0
+	
+	preview.position = Vector2(viewport_x * scale_factor, viewport_y * scale_factor)
+	preview.size = Vector2(view_width * scale_factor, view_height * scale_factor)
+
+
+func _handle_left() -> void:
+	match current_state:
+		MenuState.VIEW_SIZE:
+			GameState.decrease_view_size()
+			_update_view_size_preview()
+
+
+func _handle_right() -> void:
+	match current_state:
+		MenuState.VIEW_SIZE:
+			GameState.increase_view_size()
+			_update_view_size_preview()
 
 
 func _handle_up() -> void:
@@ -658,6 +749,9 @@ func _handle_up() -> void:
 			var maps_in_episode = mini(10, available_maps.size() - episode_start)
 			if maps_in_episode > 0:
 				map_index = (map_index - 1 + maps_in_episode) % maps_in_episode
+		MenuState.VIEW_SIZE:
+			GameState.increase_view_size()
+			_update_view_size_preview()
 	
 	_update_cursor()
 	_update_menu_highlights()
@@ -676,12 +770,16 @@ func _handle_down() -> void:
 			var maps_in_episode = mini(10, available_maps.size() - episode_start)
 			if maps_in_episode > 0:
 				map_index = (map_index + 1) % maps_in_episode
+		MenuState.VIEW_SIZE:
+			GameState.decrease_view_size()
+			_update_view_size_preview()
 	
 	_update_cursor()
 	_update_menu_highlights()
 
 
 func _start_game() -> void:
+
 	# Calculate actual map index
 	var actual_map_index = selected_episode * 10 + map_index
 	if actual_map_index < available_maps.size():

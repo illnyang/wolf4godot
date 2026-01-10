@@ -24,6 +24,20 @@ var selected_game: String = "wolf3d"
 enum Difficulty { BABY, EASY, NORMAL, HARD }
 var difficulty: Difficulty = Difficulty.NORMAL
 
+# View size system (original Wolf3D behavior)
+# viewsize ranges from 4 to 21 (in 16-pixel units)
+# viewwidth = viewsize * 16, viewheight = viewwidth * 0.5
+const VIEW_SIZE_MIN = 4
+const VIEW_SIZE_MAX = 21
+const VIEW_SIZE_DEFAULT = 15
+const HEIGHT_RATIO = 0.5  # Original Wolf3D aspect ratio
+const STATUSLINES = 40    # HUD height in original 320x200 resolution
+const GAME_AREA_HEIGHT = 160  # 200 - STATUSLINES
+
+var view_size: int = VIEW_SIZE_DEFAULT
+
+signal view_size_changed(new_size: int)
+
 
 # Difficulty modifiers
 func get_damage_multiplier() -> float:
@@ -291,3 +305,42 @@ func start_level() -> void:
 func complete_level() -> void:
 	# stats for end-of-level screen
 	pass
+
+
+# ===== VIEW SIZE SYSTEM =====
+func set_view_size(new_size: int) -> void:
+	new_size = clampi(new_size, VIEW_SIZE_MIN, VIEW_SIZE_MAX)
+	if new_size != view_size:
+		view_size = new_size
+		view_size_changed.emit(view_size)
+		print("View size changed to: %d" % view_size)
+
+
+func increase_view_size() -> void:
+	set_view_size(view_size + 1)
+
+
+func decrease_view_size() -> void:
+	set_view_size(view_size - 1)
+
+
+# Get viewport dimensions in original 320x200 coordinates
+func get_view_width() -> int:
+	return view_size * 16
+
+
+func get_view_height() -> int:
+	return int(get_view_width() * HEIGHT_RATIO)
+
+
+# Check if at full size (no borders needed)
+func is_full_size() -> bool:
+	return view_size >= VIEW_SIZE_MAX
+
+
+func _process(_delta: float) -> void:
+	# Handle view size input
+	if Input.is_action_just_pressed("view_increase"):
+		increase_view_size()
+	elif Input.is_action_just_pressed("view_decrease"):
+		decrease_view_size()

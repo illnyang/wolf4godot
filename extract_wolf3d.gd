@@ -148,6 +148,7 @@ func _extract_game(game_type: GameType) -> void:
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sounds")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "music")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "pics")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "fonts")
 	
 	extract_maps()
 	extract_vswap()
@@ -1024,6 +1025,9 @@ func extract_vgagraph() -> void:
 	var extracted = 0
 	var num_pics = mini(PIC_NAMES.size(), pic_table.size())
 	
+	# Extract fonts first (Chunks 1 and 2)
+	_extract_fonts(vgagraph, offsets, huffman_table)
+	
 	for i in range(num_pics):
 		var chunk_idx = STARTPICS + i
 		if chunk_idx >= offsets.size() - 1:
@@ -1213,3 +1217,89 @@ func _save_pic(data: PackedByteArray, width: int, height: int, pic_id: int, name
 	var err = img.save_png(filename)
 	if err != OK:
 		print("   Failed to save: ", filename)
+
+func _extract_fonts(vgagraph: FileAccess, offsets: Array[int], huffman_table: Array) -> void:
+	print("-> Extracting fonts (Chunks 1 and 2)...")
+	
+	for i in range(1, 3):  # Chunks 1 and 2 are fonts
+		var offset = offsets[i]
+		if offset < 0: continue
+		
+		# Find next valid offset for size
+		var j = i + 1
+		while j < offsets.size() and offsets[j] < 0: j += 1
+		if j >= offsets.size(): break
+		
+		var compressed_size = offsets[j] - offset
+		vgagraph.seek(offset)
+		var expanded_len = vgagraph.get_32()
+		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
+		
+		var decompressed = _huffman_expand(compressed_data, expanded_len, huffman_table)
+		if decompressed.size() < 770: continue # fontstruct is 770 bytes
+		
+		_save_font_atlas(decompressed, i)
+
+func _save_font_atlas(data: PackedByteArray, font_id: int) -> void:
+	# fontstruct: height (2), location[256] (512), width[256] (256)
+	var height = data.decode_u16(0)
+	var locations: Array[int] = []
+	for i in range(256):
+		locations.append(data.decode_u16(2 + i * 2))
+	var widths: Array[int] = []
+	for i in range(256):
+		widths.append(data[514 + i])
+	
+	# Calculate total width for atlas (16x16 grid)
+	var max_char_width = 0
+	for w in widths: max_char_width = max(max_char_width, w)
+	
+	var atlas_width = max_char_width * 16
+	var atlas_height = height * 16
+	
+	var img = Image.create(atlas_width, atlas_height, false, Image.FORMAT_RGBA8)
+	var font_metrics = {
+		"height": height,
+		"characters": {}
+	}
+	
+	for i in range(256):
+		var char_width = widths[i]
+		var char_loc = locations[i]
+		
+		if char_width == 0 or char_loc == 0 or char_loc >= data.size():
+			continue
+			
+		var col = i % 16
+		var row = i / 16
+		var atlas_x = col * max_char_width
+		var atlas_y = row * height
+		
+		# Copy character pixels
+		for y in range(height):
+			for x in range(char_width):
+				var src_idx = char_loc + y * char_width + x
+				if src_idx < data.size():
+					var val = data[src_idx]
+					if val != 0:
+						# Original drawer uses fontcolor, we'll use white for the atlas
+						img.set_pixel(atlas_x + x, atlas_y + y, Color.WHITE)
+					else:
+						img.set_pixel(atlas_x + x, atlas_y + y, Color(0,0,0,0))
+		
+		font_metrics["characters"][i] = {
+			"x": atlas_x,
+			"y": atlas_y,
+			"width": char_width
+		}
+	
+	var font_name = "FONT%d" % font_id
+	var base_path = "%sfonts/%s" % [current_output_path, font_name]
+	img.save_png(base_path + ".png")
+	
+	var json_file = FileAccess.open(base_path + ".json", FileAccess.WRITE)
+	if json_file:
+		json_file.store_string(JSON.stringify(font_metrics, "\t"))
+		json_file.close()
+	
+	print("   Extracted %s (%dpx high) to fonts/" % [font_name, height])

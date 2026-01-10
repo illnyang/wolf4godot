@@ -13,10 +13,10 @@ const MENU_W = 178
 const MENU_H = 136
 
 # Colors from Wolf3D palette (indices to RGB)
-# BKGDCOLOR = 0x2d, BORDCOLOR = 0x29, etc.
-const COLOR_BACKGROUND = Color(0.16, 0.08, 0.29)  # Dark purple/blue
-const COLOR_BORDER = Color(0.25, 0.12, 0.45)
-const COLOR_STRIPE = Color(0.20, 0.10, 0.37)
+# BKGDCOLOR = 0x2d (often red/purple depending on version), here user specifically wants 138 RED
+const COLOR_BACKGROUND = Color(164.0/255.0, 0.0, 0.0)  # Index 138 Red
+const COLOR_BORDER = Color(110.0/255.0, 0.0, 0.0)      # Darker red for borders
+const COLOR_STRIPE = Color(0.0, 0.0, 0.0)             # Black stripes
 const COLOR_TEXT = Color(0.9, 0.9, 0.9)
 const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)  # Yellow
 const COLOR_DEACTIVE = Color(0.5, 0.5, 0.5)
@@ -484,7 +484,7 @@ func _draw_menu_background() -> void:
 	# Menu window
 	var window = ColorRect.new()
 	window.name = "MenuWindow"
-	window.color = COLOR_BACKGROUND.lightened(0.1)
+	window.color = Color(0.1, 0.0, 0.0, 0.95)  # Very dark red/black for window background
 	window.position = Vector2((MENU_X - 8) * scale_factor, (MENU_Y - 3) * scale_factor)
 	window.size = Vector2(MENU_W * scale_factor, MENU_H * scale_factor)
 	add_child(window)

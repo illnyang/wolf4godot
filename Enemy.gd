@@ -333,7 +333,8 @@ func _t_pain(_delta: float) -> void:
 # ============================================================================
 
 func _t_shoot() -> void:
-	# Check line of sight first
+	# Original Wolf3D: T_Shoot (WL_ACT2.C)
+	# Check line of sight first - player MUST be visible
 	if not _check_line():
 		return
 	
@@ -341,14 +342,33 @@ func _t_shoot() -> void:
 	var dy = abs(tiley - int(floor(player.position.z)))
 	var dist = max(dx, dy)
 	
+	# Maximum effective shooting distance (original had ~20 tiles practical limit)
+	# At dist > 15, hitchance becomes very low anyway
+	if dist > 20:
+		return
+	
 	# SS and Boss are better shots (2/3 effective distance)
 	if enemy_type == EnemyType.SS or enemy_type == EnemyType.BOSS:
 		dist = int(dist * 2.0 / 3.0)
 	
-	# Calculate hit chance (original: 256 - dist*16 if not visible, 256 - dist*8 otherwise)
-	# Simplified for Godot
-	var hitchance = 200 - dist * 16
-	hitchance = clamp(hitchance, 10, 250)
+	# Calculate hit chance based on player visibility and movement
+	# Original: 256 - dist*16 if visible moving, 256 - dist*8 if standing still
+	var hitchance: int
+	var player_moving = false
+	if player.has_method("get_velocity"):
+		var vel = player.get_velocity()
+		player_moving = vel.length() > 2.0
+	elif player.get("velocity") != null:
+		player_moving = player.velocity.length() > 2.0
+	
+	if player_moving:
+		# Player can see to dodge - harder for enemy to hit
+		hitchance = 160 - dist * 16
+	else:
+		# Player standing still - easier target
+		hitchance = 256 - dist * 8
+	
+	hitchance = clamp(hitchance, 0, 256)
 	
 	# Roll for hit
 	if randi() % 256 < hitchance:
@@ -363,15 +383,14 @@ func _t_shoot() -> void:
 		
 		damage = max(1, damage)
 		
-		# Deal damage to player (pass self as attacker for death sequence)
+		# Deal damage to player
 		if player.has_method("take_damage"):
 			player.take_damage(damage, self)
-		
-		# Play sound
-		SoundManager.play_sfx("NAZIFIRESND")
-	else:
-		# Miss - still play sound
-		SoundManager.play_sfx("NAZIFIRESND")
+	
+	# Play sound regardless of hit/miss (original behavior)
+	SoundManager.play_sfx("NAZIFIRESND")
+
+
 
 func _t_bite() -> void:
 	# Dog bite attack
@@ -454,37 +473,52 @@ func _check_sight() -> bool:
 	return _check_line()
 
 func _check_line() -> bool:
-	# Raycast from enemy to player
+	# Tile-based line of sight check using Bresenham's algorithm
+	# Check each tile between enemy and player for walls/doors
 	if player == null or grid == null:
-		return true  # Assume visible if no grid
+		return false  # Assume NOT visible if no grid (safer default)
 	
-	var from_tile = Vector2i(tilex, tiley)
-	var to_tile = Vector2i(int(floor(player.position.x)), int(floor(player.position.z)))
+	var x0 = tilex
+	var y0 = tiley
+	var x1 = int(floor(player.position.x))
+	var y1 = int(floor(player.position.z))
 	
-	# Use Bresenham-style line check through tiles
-	var dx = abs(to_tile.x - from_tile.x)
-	var dy = abs(to_tile.y - from_tile.y)
-	var sx = 1 if from_tile.x < to_tile.x else -1
-	var sy = 1 if from_tile.y < to_tile.y else -1
+	# If same tile, definitely visible
+	if x0 == x1 and y0 == y1:
+		return true
+	
+	var dx = abs(x1 - x0)
+	var dy = abs(y1 - y0)
+	var sx = 1 if x0 < x1 else -1
+	var sy = 1 if y0 < y1 else -1
 	var err = dx - dy
 	
-	var x = from_tile.x
-	var y = from_tile.y
+	var x = x0
+	var y = y0
 	
-	while x != to_tile.x or y != to_tile.y:
+	# Step through tiles from enemy to player
+	while true:
+		# Calculate next position FIRST
 		var e2 = 2 * err
+		var next_x = x
+		var next_y = y
+		
 		if e2 > -dy:
 			err -= dy
-			x += sx
+			next_x += sx
 		if e2 < dx:
-			err -= dx
-			y += sy
+			err += dx
+			next_y += sy
 		
-		# Skip start tile
-		if x == from_tile.x and y == from_tile.y:
-			continue
+		# Move to next tile
+		x = next_x
+		y = next_y
 		
-		# Check if this tile blocks sight
+		# Reached player tile - success!
+		if x == x1 and y == y1:
+			return true
+		
+		# Check if this intermediate tile blocks sight
 		if not grid.is_within_grid(x, y):
 			return false
 		
@@ -494,14 +528,19 @@ func _check_line() -> bool:
 		if tile_id >= 1 and tile_id <= 53:
 			return false
 		
-		# Closed doors block sight (90-101 are doors)
+		# Doors block sight when closed (90-101 are doors)
 		if tile_id >= 90 and tile_id <= 101:
-			# Check if door is open
 			var door = _find_door_at(x, y)
-			if door and not door.is_open():
+			if door == null or not door.is_open():
 				return false
+		
+		# Safety: if we've gone too far, break
+		if abs(x - x0) > 64 or abs(y - y0) > 64:
+			return false
 	
 	return true
+
+
 
 func _find_door_at(tx: int, ty: int) -> Node:
 	var doors = get_tree().get_nodes_in_group("doors")

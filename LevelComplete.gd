@@ -115,10 +115,16 @@ func _set_par_time() -> void:
 		par_time_str = "01:30"
 
 func _create_ui() -> void:
-	# Dark blue/gray background (color 127 in original palette = #7F7F7F, but original uses darker blue)
+	# Original Wolf3D intermission background: RGB(0, 65, 65) - dark teal/cyan
+	# The intermission only covers the game area (160 pixels in original 320x200)
+	# The status bar (40 pixels at bottom) remains visible!
+	# Original code: VWB_Bar(0,0,320,200-STATUSLINES,127) where STATUSLINES=40
 	var bg = ColorRect.new()
-	bg.color = Color(0.298, 0.298, 0.498, 1.0)  # Approximation of original blue-gray
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.0 / 255.0, 65.0 / 255.0, 65.0 / 255.0, 1.0)  # RGB(0, 65, 65)
+	# Only cover game area, not HUD (160 out of 200 pixels in original = 80%)
+	var game_area_height = 160.0 * scale_factor  # Original game area was 160 pixels
+	bg.position = Vector2(0, 0)
+	bg.size = Vector2(320.0 * scale_factor, game_area_height)
 	add_child(bg)
 	
 	# Container for text

@@ -47,8 +47,11 @@ var health_digits: Array[TextureRect] = []
 var ammo_digits: Array[TextureRect] = []
 
 # Face animation (from original: faceframe changes randomly every ~70 tics)
-const FACETICS = 70
-var facecount: int = 0
+# Original ran at 70Hz (70 ticks per second)
+const TICKS_PER_SECOND = 70.0
+const FACETICS = 70  # Maximum tics before face change
+var face_time_accumulator: float = 0.0  # Time accumulator for tick conversion
+var facecount: int = 0  # Converted tick count
 var faceframe: int = 0  # 0, 1, or 2 for face variation (A, B, C)
 var got_gatling: bool = false  # Special gatling pickup face
 
@@ -281,13 +284,20 @@ func _draw_face() -> void:
 		face_rect.texture = face_textures[face_idx]
 
 # Update face animation (called from _process)
-func _update_face() -> void:
-	facecount += 1
+# Convert real time to original 70Hz ticks
+func _update_face(delta: float) -> void:
+	face_time_accumulator += delta
 	
-	if facecount > randi() % 70:  # Original used US_RndT() >> 6
+	# Convert accumulated time to ticks (70Hz)
+	var ticks_to_add = int(face_time_accumulator * TICKS_PER_SECOND)
+	if ticks_to_add > 0:
+		facecount += ticks_to_add
+		face_time_accumulator -= float(ticks_to_add) / TICKS_PER_SECOND
+	
+	# Original logic: if facecount > random(0-69), change face
+	if facecount > randi() % FACETICS:
 		faceframe = randi() % 3
-		if faceframe == 3:
-			faceframe = 1
+		# Note: original code had bug where faceframe could be 3, fixed here
 		facecount = 0
 		_draw_face()
 
@@ -342,5 +352,5 @@ func _on_player_died() -> void:
 
 # ===== Process for face animation =====
 
-func _process(_delta: float) -> void:
-	_update_face()
+func _process(delta: float) -> void:
+	_update_face(delta)

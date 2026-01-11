@@ -76,8 +76,9 @@ func _ready() -> void:
 	process_mode = PROCESS_MODE_ALWAYS
 	layer = 100
 	
+	# With project resolution fixed to 1152x720, scale_factor is exactly 3.6
 	var window_size = get_viewport().get_visible_rect().size
-	scale_factor = window_size.x / float(ORIG_WIDTH)
+	scale_factor = window_size.y / float(ORIG_HEIGHT)
 	
 	_load_assets()
 	_init_stats()
@@ -107,6 +108,8 @@ func _load_assets() -> void:
 	# BJ Breathing pics
 	bj_textures.append(_load_pic("040_L_GUYPIC.png"))
 	bj_textures.append(_load_pic("081_L_GUY2PIC.png"))
+	if bj_textures.size() >= 2:
+		print("LevelComplete: Loaded BJ textures: ", bj_textures[0].get_size(), " and ", bj_textures[1].get_size())
 	
 	# Status bar background
 	statusbar_texture = _load_pic("083_STATUSBARPIC.png")
@@ -138,7 +141,7 @@ func _create_ui() -> void:
 	var win_w = get_viewport().get_visible_rect().size.x
 	var win_h = get_viewport().get_visible_rect().size.y
 	
-	# Top background (160 original pixels)
+	# Background (fills the summary area - top 80%)
 	var bg = ColorRect.new()
 	bg.color = Color(0.0, 65.0/255.0, 65.0/255.0, 1.0)
 	bg.size = Vector2(win_w, 160 * scale_factor)
@@ -157,7 +160,7 @@ func _create_ui() -> void:
 	text_container = Control.new()
 	add_child(text_container)
 	
-	# Static Text
+	# Static Text - using 320x200 grid
 	_write(14, 2, "FLOOR")
 	_write(14, 4, "COMPLETED")
 	_write(26, 2, str(floor_num))
@@ -178,13 +181,13 @@ func _create_ui() -> void:
 	label_secret = _create_align_group(37, 16)
 	label_treasure = _create_align_group(37, 18)
 	
-	# Status Bar Replica
+	# Status Bar Replica at the bottom
 	statusbar_rect = TextureRect.new()
 	statusbar_rect.texture = statusbar_texture
 	statusbar_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	statusbar_rect.stretch_mode = TextureRect.STRETCH_SCALE
-	statusbar_rect.size = Vector2(320 * scale_factor, 40 * scale_factor)
-	statusbar_rect.position = Vector2(0, win_h - 40 * scale_factor)
+	statusbar_rect.size = Vector2(win_w, 40 * scale_factor)
+	statusbar_rect.position = Vector2(0, 160 * scale_factor)
 	add_child(statusbar_rect)
 	
 	# HUD Numbers
@@ -208,7 +211,7 @@ func _create_ui() -> void:
 	hud_weapon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	hud_weapon.stretch_mode = TextureRect.STRETCH_SCALE
 	hud_weapon.position = Vector2(256 * scale_factor, 4 * scale_factor)
-	hud_weapon.size = Vector2(48 * scale_factor, 24 * scale_factor) # Approximate
+	hud_weapon.size = Vector2(48 * scale_factor, 24 * scale_factor)
 	statusbar_rect.add_child(hud_weapon)
 	
 	# Initial draw
@@ -248,8 +251,7 @@ func _set_aligned_text(container: Node2D, text: String) -> void:
 	for ch in text:
 		length += 8 if ch == ":" else 16
 	
-	var offset_x = -length * scale_factor
-	var cx = offset_x
+	var cx = -length * scale_factor
 	for ch in text.to_upper():
 		if ch == " ":
 			cx += 16 * scale_factor
@@ -291,7 +293,7 @@ func _process(delta: float) -> void:
 	bj_timer += delta
 	if bj_timer >= 0.5:
 		bj_timer = 0.0
-		bj_frame = 1 - bj_frame
+		bj_frame = (bj_frame + 1) % bj_textures.size()
 		bj_sprite.texture = bj_textures[bj_frame]
 	
 	# Counting

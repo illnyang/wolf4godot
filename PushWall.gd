@@ -41,12 +41,15 @@ func push(direction: Vector3) -> bool:
 	if current_state == State.PUSHING:
 		return false
 	
+	# Snap direction to cardinal (N, S, E, W) - like original Wolf3D
+	var cardinal_dir = _snap_to_cardinal(direction)
+	
 	# Check if space ahead is clear
-	var check_pos1 = start_pos + direction
+	var check_pos1 = start_pos + cardinal_dir
 	var check_x1 = int(floor(check_pos1.x))
 	var check_z1 = int(floor(check_pos1.z))
 	
-	var check_pos2 = start_pos + direction * 2.0
+	var check_pos2 = start_pos + cardinal_dir * 2.0
 	var check_x2 = int(floor(check_pos2.x))
 	var check_z2 = int(floor(check_pos2.z))
 	
@@ -62,7 +65,7 @@ func push(direction: Vector3) -> bool:
 	
 	# Start pushing
 	current_state = State.PUSHING
-	push_direction = direction.normalized()
+	push_direction = cardinal_dir
 	
 	# Clear current tile collision
 	if grid != null and grid.has_method("clear_tile_collision"):
@@ -75,6 +78,18 @@ func push(direction: Vector3) -> bool:
 	SoundManager.play_sound(SoundManager.SoundID.PUSHWALLSND)
 	
 	return true
+
+func _snap_to_cardinal(dir: Vector3) -> Vector3:
+	# Snap to nearest cardinal direction (N, S, E, W)
+	var abs_x = abs(dir.x)
+	var abs_z = abs(dir.z)
+	
+	if abs_x > abs_z:
+		# East or West
+		return Vector3(1, 0, 0) if dir.x > 0 else Vector3(-1, 0, 0)
+	else:
+		# North or South
+		return Vector3(0, 0, 1) if dir.z > 0 else Vector3(0, 0, -1)
 
 func _is_tile_walkable(tx: int, tz: int) -> bool:
 	if not grid.is_within_grid(tx, tz):

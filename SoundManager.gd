@@ -154,12 +154,22 @@ func _load_wav_file(path: String) -> AudioStreamWAV:
 	var audio_data = file.get_buffer(data_size)
 	file.close()
 	
+	print("Loading WAV: %s - rate=%d, bits=%d, channels=%d, size=%d" % [path.get_file(), sample_rate, bits_per_sample, num_channels, data_size])
+	
+	# Convert unsigned 8-bit (0-255, 128=silence) to signed 8-bit (-128 to 127, 0=silence)
+	# This is required because Godot's AudioStreamWAV expects signed 8-bit data
+	var signed_data = PackedByteArray()
+	signed_data.resize(audio_data.size())
+	for i in range(audio_data.size()):
+		# Subtract 128 to convert unsigned to signed (wraps around properly)
+		signed_data[i] = (audio_data[i] - 128) & 0xFF
+	
 	# Create AudioStreamWAV
 	var stream = AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_8_BITS
 	stream.mix_rate = sample_rate
 	stream.stereo = (num_channels == 2)
-	stream.data = audio_data
+	stream.data = signed_data
 	
 	return stream
 
@@ -172,6 +182,7 @@ func play_sfx(sound_name: String) -> void:
 	if not sound_cache.has(sound_name):
 		# Try uppercase just in case
 		if not sound_cache.has(sound_name.to_upper()):
+			print("SoundManager: Sound '%s' not found! Available: %s" % [sound_name, sound_cache.keys()])
 			return
 		sound_name = sound_name.to_upper()
 	
@@ -180,11 +191,13 @@ func play_sfx(sound_name: String) -> void:
 		if not player.playing:
 			player.stream = sound_cache[sound_name]
 			player.play()
+			print("SoundManager: Playing '%s'" % sound_name)
 			return
 	
 	# All players busy - use first one (oldest sound)
 	audio_players[0].stream = sound_cache[sound_name]
 	audio_players[0].play()
+	print("SoundManager: Playing '%s' (busy)" % sound_name)
 
 # Backward compatibility: play by numeric ID (deprecated, use play_sfx instead)
 func play_sound(sound_id: int) -> void:

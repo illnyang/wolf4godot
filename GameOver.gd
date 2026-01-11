@@ -15,8 +15,8 @@ func _ready() -> void:
 	_load_assets()
 	_create_ui()
 	
-	# Play game over sound
-	SoundManager.play_sound(SoundManager.SoundID.GAMEOVERSND)
+	# Play game over sound (death scream)
+	SoundManager.play_sfx("DEATHSCREAM1SND")
 
 func _load_assets() -> void:
 	var game_id = GameState.selected_game if GameState.selected_game != "" else "wolf3d"

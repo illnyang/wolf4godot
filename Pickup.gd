@@ -111,22 +111,5 @@ func try_pickup(player: Player) -> bool:
 	return false
 
 func _play_sound() -> void:
-	match pickup_type:
-		PickupType.FOOD, PickupType.HEALTH_KIT:
-			SoundManager.play_health_pickup()
-		PickupType.CLIP, PickupType.AMMO_BOX:
-			SoundManager.play_ammo_pickup()
-		PickupType.MACHINEGUN, PickupType.CHAINGUN:
-			SoundManager.play_ammo_pickup()  # Weapon pickup uses ammo sound
-		PickupType.GOLD_KEY, PickupType.SILVER_KEY:
-			SoundManager.play_key_pickup()
-		PickupType.CROSS:
-			SoundManager.play_sound(SoundManager.SoundID.BONUS1SND)
-		PickupType.CHALICE:
-			SoundManager.play_sound(SoundManager.SoundID.BONUS2SND)
-		PickupType.BIBLE:
-			SoundManager.play_sound(SoundManager.SoundID.BONUS3SND)
-		PickupType.CROWN:
-			SoundManager.play_sound(SoundManager.SoundID.BONUS4SND)
-		PickupType.EXTRA_LIFE:
-			SoundManager.play_sound(SoundManager.SoundID.BONUS1UPSND)
+	# Wolf3D uses SLURPIESND for most pickups
+	SoundManager.play_sfx("SLURPIESND")

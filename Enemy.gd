@@ -829,7 +829,7 @@ func _first_sighting() -> void:
 		EnemyType.DOG:
 			SoundManager.play_sfx("DOGBARKSND")
 		EnemyType.SS:
-			SoundManager.play_sfx("SCABORGSND")
+			SoundManager.play_sfx("SCHUTZADSND")
 		_:
 			SoundManager.play_sfx("HALTSND")
 

@@ -1,3 +1,20 @@
-# Godot 4+ specific ignores
+# Godot-specific ignores
 .godot/
-/android/
+*.uid
+*.translation
+
+# Build artifacts
+wolfgodot.exe
+wolfgodot.console.exe
+wolfgodot.pck
+wolfgodot.zip
+wolfgodot.apk
+wolfgodot.apk.idsig
+
+# Editor/OS junk
+.editorconfig
+*.tmp
+*.log
+
+# Android export
+android/

@@ -110,9 +110,8 @@ func _update_grid_collision(new_x: int, new_z: int) -> void:
 		grid_y = new_z
 
 func is_blocking() -> bool:
-	# Only block when idle (not moving)
-	# During PUSHING state, player can pass through
-	return current_state == State.IDLE
+	# Pushwall always blocks - collision is checked at its current position
+	return true
 
 # For save/load system
 func get_push_state() -> Dictionary:

@@ -211,6 +211,32 @@ func _attempt_move(offset_3d: Vector3) -> void:
 	var new_x = position.x + offset_3d.x
 	var new_z = position.z + offset_3d.z
 
+	# First check pushwall collisions (they move continuously between tiles)
+	var all_pushwalls = get_tree().get_nodes_in_group("pushwalls")
+	for pushwall in all_pushwalls:
+		if pushwall and is_instance_valid(pushwall):
+			var pw_pos = pushwall.position
+			# Check box collision with pushwall (1x1 box at pw_pos)
+			var closest_x = clamp(new_x, pw_pos.x - 0.5, pw_pos.x + 0.5)
+			var closest_z = clamp(new_z, pw_pos.z - 0.5, pw_pos.z + 0.5)
+			var dx = new_x - closest_x
+			var dz = new_z - closest_z
+			var dist = sqrt(dx*dx + dz*dz)
+			
+			if dist < radius:
+				# Collision with pushwall - push player back
+				var penetration = radius - dist + skin
+				if dist > 0:
+					new_x = new_x + (dx / dist) * penetration
+					new_z = new_z + (dz / dist) * penetration
+				else:
+					# Player is exactly at pushwall center - push in opposite direction of movement
+					if offset_3d.length() > 0:
+						var push_dir = -offset_3d.normalized()
+						new_x = pw_pos.x + push_dir.x * (radius + skin)
+						new_z = pw_pos.z + push_dir.z * (radius + skin)
+
+	# Then check tile-based collisions
 	var min_tx = int(floor(new_x - radius))
 	var max_tx = int(floor(new_x + radius))
 	var min_tz = int(floor(new_z - radius))
@@ -224,12 +250,12 @@ func _attempt_move(offset_3d: Vector3) -> void:
 			var thing_id = grid.thing_at(tx, tz)
 			var is_solid = false
 			
-			# Check if this is a pushwall tile - if so, check the pushwall object instead of tile
-			if map_loader.L2Utils.is_push_wall(thing_id):
-				var pushwall = _find_pushwall_at_tile(tx, tz)
-				if pushwall and pushwall.has_method("is_blocking"):
-					is_solid = pushwall.is_blocking()
-			elif map_loader.L1Utils.is_wall(tile_id):
+			# Check if there's a pushwall at this actual position (not original thing_id position)
+			var pushwall = _find_pushwall_at_tile(tx, tz)
+			if pushwall and pushwall.has_method("is_blocking"):
+				is_solid = pushwall.is_blocking()
+			# Only check tile walls if it's NOT an original pushwall position
+			elif not map_loader.L2Utils.is_push_wall(thing_id) and map_loader.L1Utils.is_wall(tile_id):
 				is_solid = true
 			elif map_loader.L1Utils.is_door(tile_id) or map_loader.L1Utils.is_elevator_door(tile_id):
 				var door = _find_door_at_tile(tx, tz)

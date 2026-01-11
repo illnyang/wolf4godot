@@ -153,6 +153,7 @@ func _extract_game(game_type: GameType) -> void:
 	extract_maps()
 	extract_vswap()
 	extract_audio()  # Extract IMF music from AUDIOT
+	extract_adlib_sounds()  # Extract AdLib beep sounds from AUDIOT
 	extract_vgagraph()  # Extract pics from VGAGRAPH
 	
 #func already_extracted() -> bool:
@@ -849,6 +850,211 @@ const DIGI_SOUND_NAMES = [
 	"DEATHSCREAM7SND", "DEATHSCREAM8SND", "DEATHSCREAM9SND", "KEINSND", "MEINSND",
 	"ROSESND"
 ]
+
+# AdLib sound names (from AUDIOWL6.H) - these are synthesized beeps stored in AUDIOT
+const ADLIB_SOUND_NAMES = [
+	"HITWALLSND", "SELECTWPNSND", "SELECTITEMSND", "HEARTBEATSND", "MOVEGUN2SND",
+	"MOVEGUN1SND", "NOWAYSND", "NAZIHITPLAYERSND", "SCHABBSTHROWSND", "PLAYERDEATHSND",
+	"DOGDEATHSND_AL", "ATKGATLINGSND_AL", "GETKEYSND", "NOITEMSND", "WALK1SND",
+	"WALK2SND", "TAKEDAMAGESND_AL", "GAMEOVERSND", "OPENDOORSND_AL", "CLOSEDOORSND_AL",
+	"DONOTHINGSND", "HALTSND_AL", "DEATHSCREAM2SND_AL", "ATKKNIFESND", "ATKPISTOLSND_AL",
+	"DEATHSCREAM3SND", "ATKMACHINEGUNSND_AL", "HITENEMYSND", "SHOOTDOORSND", "DEATHSCREAM1SND_AL",
+	"GETMACHINESND", "GETAMMOSND", "SHOOTSND", "HEALTH1SND", "HEALTH2SND",
+	"BONUS1SND", "BONUS2SND", "BONUS3SND", "GETGATLINGSND", "ESCPRESSEDSND",
+	"LEVELDONESND_AL", "DOGBARKSND_AL", "ENDBONUS1SND", "ENDBONUS2SND", "BONUS1UPSND",
+	"BONUS4SND", "PUSHWALLSND_AL", "NOBONUSSND", "PERCENT100SND", "BOSSACTIVESND",
+	"MUTTISND_AL", "SCHUTZADSND_AL", "AHHHGSND_AL", "DIESND_AL", "EVASND_AL",
+	"GUTENTAGSND_AL", "LEBENSND_AL", "SCHEISTSND_AL", "NAZIFIRESND_AL", "BOSSFIRESND_AL",
+	"SSFIRESND_AL", "SLURPIESND_AL", "TOTHUNDSND_AL", "MEINGOTTSND_AL", "SCHABBSHASND_AL",
+	"HITLERHASND_AL", "SPIONSND_AL", "NEINSOVASSND_AL", "DOGATTACKSND_AL", "FLAMETHROWERSND",
+	"MECHSTEPSND_AL", "GOOBSSND", "YEAHSND_AL", "DEATHSCREAM4SND_AL", "DEATHSCREAM5SND_AL",
+	"DEATHSCREAM6SND_AL", "DEATHSCREAM7SND_AL", "DEATHSCREAM8SND_AL", "DEATHSCREAM9SND_AL",
+	"DONNERSND_AL", "EINESND_AL", "ERLAUBENSND_AL", "KEINSND_AL", "MEINSND_AL",
+	"ROSESND_AL", "MISSILEFIRESND", "MISSILEHITSND"
+]
+
+#-----------------------------------------------------
+# AdLib Sound Extraction - Convert OPL2 data to WAV
+#-----------------------------------------------------
+# AdLib sounds are OPL2 FM synthesis data. We use a simplified square wave
+# approximation to convert them to playable WAV files.
+
+func extract_adlib_sounds() -> void:
+	print("Extracting AdLib sounds from AUDIOT...")
+	
+	var audiohed_path = current_data_path + "AUDIOHED" + current_extension
+	var audiot_path = current_data_path + "AUDIOT" + current_extension
+	
+	var audiohed = FileAccess.open(audiohed_path, FileAccess.READ)
+	if audiohed == null:
+		print("--> No AUDIOHED found, skipping AdLib extraction")
+		return
+	
+	var audiot = FileAccess.open(audiot_path, FileAccess.READ)
+	if audiot == null:
+		audiohed.close()
+		print("--> No AUDIOT found, skipping AdLib extraction")
+		return
+	
+	# Read all offsets from AUDIOHED (32-bit each)
+	var offsets: Array[int] = []
+	while audiohed.get_position() < audiohed.get_length():
+		offsets.append(audiohed.get_32())
+	audiohed.close()
+	
+	var num_chunks = offsets.size() - 1
+	
+	# In Wolf3D, AdLib sounds start at index LASTSOUND (NUMSOUNDS)
+	# PC speaker sounds are 0 to LASTSOUND-1
+	# AdLib sounds are LASTSOUND to 2*LASTSOUND-1
+	# We estimate LASTSOUND as ~87 based on audiowl6.h
+	var lastsound = 87
+	var adlib_start = lastsound  # AdLib sounds start after PC speaker sounds
+	
+	print("--> Extracting AdLib sounds (indices %d to %d)" % [adlib_start, adlib_start + lastsound - 1])
+	
+	var sounds_dir = current_output_path + "sounds/"
+	DirAccess.make_dir_recursive_absolute(sounds_dir)
+	
+	var extracted = 0
+	for i in range(lastsound):
+		var chunk_idx = adlib_start + i
+		if chunk_idx >= num_chunks:
+			break
+		
+		var offset = offsets[chunk_idx]
+		var next_offset = offsets[chunk_idx + 1] if chunk_idx + 1 < offsets.size() else audiot.get_length()
+		
+		# Skip invalid offsets
+		if offset == 0xFFFFFFFF or offset >= audiot.get_length():
+			continue
+		if next_offset == 0xFFFFFFFF:
+			continue
+		
+		var chunk_size = next_offset - offset
+		if chunk_size < 24:  # Minimum AdLib sound header is 24 bytes
+			continue
+		
+		audiot.seek(offset)
+		
+		# Read AdLib sound header (6 byte SoundCommon + 16 byte Instrument + 1 byte block)
+		var length = audiot.get_32()  # Data length
+		var priority = audiot.get_16() # Priority
+		
+		# Read instrument data (16 bytes) - we'll use simplified synthesis
+		var inst_data = audiot.get_buffer(16)
+		
+		# Read block (octave selector)
+		var block = audiot.get_8()
+		
+		# Read sound data
+		if length == 0 or length > chunk_size - 23:
+			continue
+		
+		var data = audiot.get_buffer(length)
+		
+		# Convert AdLib data to WAV using simplified synthesis
+		var pcm_data = _render_adlib_to_pcm(data, block, inst_data)
+		
+		if pcm_data.size() > 0:
+			var sound_name = "ADLIB_%03d" % i
+			if i < ADLIB_SOUND_NAMES.size():
+				sound_name = ADLIB_SOUND_NAMES[i]
+			
+			_save_adlib_wav(pcm_data, sound_name)
+			extracted += 1
+	
+	audiot.close()
+	print("--> Extracted %d AdLib sounds" % extracted)
+
+func _render_adlib_to_pcm(data: PackedByteArray, block: int, inst: PackedByteArray) -> PackedByteArray:
+	# Simplified AdLib rendering using square wave synthesis
+	# Real OPL2 uses FM synthesis, but square waves give recognizable beeps
+	
+	const SAMPLE_RATE = 22050  # Output sample rate
+	const TICK_RATE = 140.0    # Wolf3D runs AdLib at 140 Hz
+	const SAMPLES_PER_TICK = SAMPLE_RATE / TICK_RATE
+	
+	var result = PackedByteArray()
+	
+	# OPL2 frequency calculation:
+	# The block value from Wolf3D header is raw octave (0-7)
+	# Freq = F-Number * 49716 / (2^(20-Block))
+	# Since we only have the low byte of F-Number, we treat it as is
+	# Wolf3D uses block values typically 2-5 for sound effects
+	var octave = block & 7
+	if octave == 0:
+		octave = 4  # Default to middle octave if not set
+	
+	var phase = 0.0
+	
+	for byte_idx in range(data.size()):
+		var freq_low = data[byte_idx]
+		
+		if freq_low == 0:
+			# Silence - output silence samples
+			for s in range(int(SAMPLES_PER_TICK)):
+				result.append(128)  # 8-bit silence (unsigned)
+		else:
+			# Calculate frequency from F-Number
+			# F-Number is 10-bit (0-1023), we have low byte only
+			# Adjust multiplier to tune pitch (try 2, 3, or 4)
+			var f_number = freq_low * 0.5  # Tune this value for correct pitch
+			
+			# OPL2 formula: Freq = F-Number * 49716 / (2^(20-Block))
+			var freq = (f_number * 49716.0) / pow(2, 20 - octave)
+			
+			# Clamp frequency to audible range
+			freq = clamp(freq, 80.0, 8000.0)
+			
+			# Generate square wave samples for this tick
+			var phase_inc = freq / SAMPLE_RATE
+			
+			for s in range(int(SAMPLES_PER_TICK)):
+				# Square wave with reduced amplitude for less harsh sound
+				var sample = 192 if sin(phase * TAU) > 0 else 64
+				result.append(sample)
+				phase += phase_inc
+				if phase >= 1.0:
+					phase -= 1.0
+	
+	return result
+
+func _save_adlib_wav(data: PackedByteArray, sound_name: String) -> void:
+	if data.size() == 0:
+		return
+	
+	const SAMPLE_RATE = 22050
+	var filename = "%ssounds/%s.wav" % [current_output_path, sound_name]
+	
+	var file = FileAccess.open(filename, FileAccess.WRITE)
+	if file == null:
+		return
+	
+	var data_size = data.size()
+	var file_size = 36 + data_size
+	
+	# WAV header
+	file.store_buffer("RIFF".to_ascii_buffer())
+	file.store_32(file_size)
+	file.store_buffer("WAVE".to_ascii_buffer())
+	
+	# fmt chunk
+	file.store_buffer("fmt ".to_ascii_buffer())
+	file.store_32(16)
+	file.store_16(1)  # PCM
+	file.store_16(1)  # Mono
+	file.store_32(SAMPLE_RATE)
+	file.store_32(SAMPLE_RATE)  # Byte rate
+	file.store_16(1)  # Block align
+	file.store_16(8)  # 8 bits
+	
+	# data chunk
+	file.store_buffer("data".to_ascii_buffer())
+	file.store_32(data_size)
+	file.store_buffer(data)
+	
+	file.close()
 
 func extract_audio() -> void:
 	print("Extracting audio (IMF music)...")

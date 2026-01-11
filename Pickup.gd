@@ -107,9 +107,30 @@ func try_pickup(player: Player) -> bool:
 			GameState.give_extra_life()
 			GameState.pickup_treasure(0) 
 			return true
-	
 	return false
 
 func _play_sound() -> void:
-	# Wolf3D uses SLURPIESND for most pickups
-	SoundManager.play_sfx("SLURPIESND")
+	# Use the extracted AdLib sounds for pickups
+	match pickup_type:
+		PickupType.FOOD, PickupType.HEALTH_KIT:
+			SoundManager.play_sfx("HEALTH1SND")
+		PickupType.CLIP, PickupType.AMMO_BOX:
+			SoundManager.play_sfx("GETAMMOSND")
+		PickupType.MACHINEGUN:
+			SoundManager.play_sfx("GETMACHINESND")
+		PickupType.CHAINGUN:
+			SoundManager.play_sfx("GETGATLINGSND")
+		PickupType.GOLD_KEY, PickupType.SILVER_KEY:
+			SoundManager.play_sfx("GETKEYSND")
+		PickupType.CROSS:
+			SoundManager.play_sfx("BONUS1SND")
+		PickupType.CHALICE:
+			SoundManager.play_sfx("BONUS2SND")
+		PickupType.BIBLE:
+			SoundManager.play_sfx("BONUS3SND")
+		PickupType.CROWN:
+			SoundManager.play_sfx("BONUS4SND")
+		PickupType.EXTRA_LIFE:
+			SoundManager.play_sfx("BONUS1UPSND")
+		_:
+			SoundManager.play_sfx("SLURPIESND")  # Fallback

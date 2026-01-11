@@ -262,6 +262,9 @@ var grid: MapGrid
 var root_node: Node3D
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+		
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	

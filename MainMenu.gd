@@ -73,6 +73,9 @@ var difficulty_options = [
 ]
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+		
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	if not FontManager.font1 or not FontManager.font2:
@@ -140,6 +143,12 @@ func _load_pics() -> void:
 			pics[pic_name] = texture
 
 func _load_texture(path: String) -> Texture2D:
+	# Try load() first for res:// paths
+	if path.begins_with("res://"):
+		var tex = load(path)
+		if tex:
+			return tex
+	
 	# For user:// paths, load image directly
 	var image = Image.load_from_file(ProjectSettings.globalize_path(path))
 	if image:
@@ -363,6 +372,9 @@ func _show_episode_select() -> void:
 		_apply_font(title_label, 2)
 		title_label.add_theme_color_override("font_color", text_color)
 		title_label.position = Vector2(center_offset_x + 120 * scale_factor, center_offset_y + ep_y * scale_factor)
+		title_label.custom_minimum_size = Vector2(180 * scale_factor, 12 * scale_factor)
+		title_label.mouse_filter = Control.MOUSE_FILTER_STOP
+		title_label.gui_input.connect(_on_item_gui_input.bind(i, "episode"))
 		add_child(title_label)
 		
 		if episode_subtitle != "":
@@ -651,6 +663,46 @@ func _input(event: InputEvent) -> void:
 		_handle_left()
 	elif event.is_action_pressed("ui_right"):
 		_handle_right()
+	elif event is InputEventScreenTouch and event.pressed:
+		# Also check for touches in screens that only have "Press any key"
+		if current_state == MenuState.MAIN and not cursor_rect.visible:
+			_handle_accept()
+
+func _on_item_gui_input(event: InputEvent, index: int, type: String):
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		match type:
+			"main":
+				main_menu_index = index
+				_update_menu_highlights()
+				_update_cursor()
+				_handle_accept()
+			"episode":
+				episode_index = index
+				_update_menu_highlights()
+				_update_cursor()
+				_handle_accept()
+			"difficulty":
+				difficulty_index = index
+				_update_menu_highlights()
+				_update_cursor()
+				_handle_accept()
+			"map":
+				map_index = index
+				_update_menu_highlights()
+				_update_cursor()
+				_handle_accept()
+			"save":
+				save_slot_index = index
+				_update_menu_highlights()
+				_update_cursor()
+				# If not already active, trigger click to start name input
+				if not save_input_active:
+					_handle_accept()
+			"load":
+				save_slot_index = index
+				_update_menu_highlights()
+				_update_cursor()
+				_handle_accept()
 
 func _handle_accept() -> void:
 	match current_state:
@@ -827,6 +879,8 @@ func _refresh_save_screen() -> void:
 		slot_label.add_theme_font_size_override("font_size", int(7 * scale_factor))
 		slot_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == save_slot_index else COLOR_TEXT)
 		slot_label.position = Vector2((MENU_X + 28) * scale_factor, (slot_start_y + i * 15) * scale_factor)
+		slot_label.mouse_filter = Control.MOUSE_FILTER_STOP
+		slot_label.gui_input.connect(_on_item_gui_input.bind(i, "save"))
 		add_child(slot_label)
 	var instr = Label.new()
 	instr.text = "ENTER to save, ESC to cancel" if save_input_active else "ENTER to name save, ESC to exit"
@@ -889,6 +943,8 @@ func _refresh_load_screen() -> void:
 		slot_label.add_theme_font_size_override("font_size", int(7 * scale_factor))
 		slot_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == save_slot_index else COLOR_TEXT)
 		slot_label.position = Vector2((MENU_X + 28) * scale_factor, (slot_start_y + i * 15) * scale_factor)
+		slot_label.mouse_filter = Control.MOUSE_FILTER_STOP
+		slot_label.gui_input.connect(_on_item_gui_input.bind(i, "save"))
 		add_child(slot_label)
 	_update_cursor()
 

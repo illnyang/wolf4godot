@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://w2asrbrmjqgp"]
+[gd_scene load_steps=5 format=3 uid="uid://w2asrbrmjqgp"]
 
 [ext_resource type="Script" uid="uid://3jkxn7nlcyxs" path="res://Player.gd" id="1_xhfnw"]
 [ext_resource type="Script" uid="uid://srdoravbmo0r" path="res://WeaponManager.gd" id="2_kpjcp"]
+[ext_resource type="PackedScene" uid="uid://b8yqx5j2v5n8r" path="res://MobileControls.tscn" id="3_mobile"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_xhfnw"]
 radius = 0.28
@@ -28,3 +29,5 @@ offset_bottom = 40.0
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="CanvasLayer/WeponUI"]
 position = Vector2(575, 186)
 script = ExtResource("2_kpjcp")
+
+[node name="MobileControls" parent="." instance=ExtResource("3_mobile")]

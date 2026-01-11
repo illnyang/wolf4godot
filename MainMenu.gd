@@ -69,7 +69,7 @@ var main_menu_options = [
 	{"text": "New Game", "active": true},
 	{"text": "Sound", "active": true},
 	{"text": "Control", "active": true},
-	{"text": "Load Game", "active": false},
+	{"text": "Load Game", "active": false},  # Disabled until saves exist
 	{"text": "Save Game", "active": false},  # Disabled until in-game
 	{"text": "Change View", "active": true},
 	{"text": "Read This!", "active": true},
@@ -111,11 +111,14 @@ func _ready() -> void:
 	
 	# Check if coming from game
 	if GameState.menu_from_game:
+		# We're coming from in-game, enable Save Game option and add Resume option
 		entered_from_game = true
 		
+		# Add "Resume Game" as first option if not already there
 		if main_menu_options[0].text != "Resume Game":
 			main_menu_options.insert(0, {"text": "Resume Game", "active": true})
 		
+		# Enable Save Game (now at index 5 because of Resume Game insertion)
 		main_menu_options[5].active = true  # Save Game
 		
 		GameState.menu_from_game = false  # Reset flag

@@ -103,6 +103,17 @@ func _try_shoot() -> void:
 	if weapon_anim.has_method("play_shoot"):
 		weapon_anim.play_shoot(current_weapon_name)
 	
+	# Play weapon sound
+	match weapon:
+		GameState.Weapon.KNIFE:
+			pass  # No knife sound in original Wolf3D
+		GameState.Weapon.PISTOL:
+			SoundManager.play_sfx("ATKPISTOLSND")
+		GameState.Weapon.MACHINEGUN:
+			SoundManager.play_sfx("ATKMACHINEGUNSND")
+		GameState.Weapon.CHAINGUN:
+			SoundManager.play_sfx("ATKGATLINGSND")
+	
 	var damage = randi_range(15, 30)
 	_perform_hitscan(damage, weapon)
 
@@ -170,7 +181,7 @@ func _is_inside_elevator(px: int, pz: int) -> bool:
 
 func _trigger_level_complete() -> void:
 	# Play level done sound
-	SoundManager.play_sound(SoundManager.SoundID.LEVELDONESND)
+	SoundManager.play_sfx("LEVELDONESND")
 	
 	# Show level complete screen
 	var level_complete_script = preload("res://LevelComplete.gd")

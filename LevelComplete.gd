@@ -1,5 +1,5 @@
 # LevelComplete.gd
-# Wolf3D Level Completion Screen - Authentic 1:1 recreation using original image-based fonts
+# Wolf3D Level Completion Screen - Authentic 1:1 recreation
 extends CanvasLayer
 
 const PICS_PATH = "res://assets/vga/pics/"
@@ -7,310 +7,411 @@ const PICS_PATH = "res://assets/vga/pics/"
 # Original Wolf3D resolution
 const ORIG_WIDTH = 320
 const ORIG_HEIGHT = 200
+const STATUS_BAR_Y = 160
 
-# Character size in original game
-const CHAR_WIDTH = 16  # Most characters are 16 pixels wide
-const CHAR_SMALL = 8   # Some characters like ':' are 8 pixels wide
+# Character sizes
+const CHAR_WIDTH = 16
+const CHAR_SMALL = 8
 
-# BJ breathing animation
-const BJ_BREATHE_INTERVAL = 0.5  # ~35 ticks / 70 ticks per second
+# Status bar positions (relative to status bar origin)
+const POS_LEVEL_X = 16
+const POS_SCORE_X = 48
+const POS_LIVES_X = 112
+const POS_FACE_X = 136
+const POS_HEALTH_X = 168
+const POS_AMMO_X = 216
+const POS_NUMBER_Y = 16
 
-# Character to image mapping (following original WL_INTER.C Write() function)
-# Index in alpha array: '0'-'9' = 0-9, ':' = 10, then skip to 'A'-'Z' = 17+
+# Animation state
+enum Phase { TIME_BONUS, KILL_RATIO, SECRET_RATIO, TREASURE_RATIO, DONE }
+var current_phase: Phase = Phase.TIME_BONUS
+
+# Assets
 var char_pics: Dictionary = {}
+var hud_digit_textures: Array[Texture2D] = []
+var face_textures: Array[Texture2D] = []
+var weapon_textures: Array[Texture2D] = []
+var bj_textures: Array[Texture2D] = []
+var statusbar_texture: Texture2D
 
-# Level stats
-var floor_num: int = 1
-var bonus_points: int = 0
-var time_taken: float = 0.0
-var par_time: float = 90.0
-var par_time_str: String = "01:30"
-var kill_ratio: int = 0
-var secret_ratio: int = 0
-var treasure_ratio: int = 0
-
-# UI elements
+# UI Nodes
 var scale_factor: float = 2.0
 var bj_sprite: TextureRect
-var bj_textures: Array[Texture2D] = []
-var bj_anim_timer: float = 0.0
-var bj_current_frame: int = 0
-
-# Container for all text sprites
+var statusbar_rect: TextureRect
 var text_container: Control
+var hud_score_digits: Array[TextureRect] = []
+var hud_lives_digit: TextureRect
+var hud_health_digits: Array[TextureRect] = []
+var hud_ammo_digits: Array[TextureRect] = []
+var hud_level_digits: Array[TextureRect] = []
+var hud_face: TextureRect
+var hud_weapon: TextureRect
+
+# Labels for the summary text (to avoid re-creating nodes)
+var label_bonus: Node2D
+var label_kill: Node2D
+var label_secret: Node2D
+var label_treasure: Node2D
+
+# Stats
+var floor_num: int = 1
+var final_time_taken: float = 0.0
+var final_kill_ratio: int = 0
+var final_secret_ratio: int = 0
+var final_treasure_ratio: int = 0
+var par_time_str: String = "01:30"
+var time_bonus_total: int = 0
+
+var display_bonus: int = 0
+var display_kill: int = 0
+var display_secret: int = 0
+var display_treasure: int = 0
+
+# Animation timers
+var bj_timer: float = 0.0
+var bj_frame: int = 0
+var count_timer: float = 0.0
 
 func _ready() -> void:
-	# Allow this node to process while game is paused
 	process_mode = PROCESS_MODE_ALWAYS
+	layer = 100
 	
-	# Calculate scale
+	# With project resolution fixed to 1152x720, scale_factor is exactly 3.6
 	var window_size = get_viewport().get_visible_rect().size
-	scale_factor = window_size.x / float(ORIG_WIDTH)
+	scale_factor = window_size.y / float(ORIG_HEIGHT)
 	
-	# Load character images
-	_load_character_pics()
-	
-	# Get stats from GameState
-	floor_num = GameState.current_map + 1
-	if GameState.level_stats:
-		time_taken = GameState.level_stats.level_time
-		kill_ratio = GameState.level_stats.get_kill_ratio()
-		secret_ratio = GameState.level_stats.get_secret_ratio()
-		treasure_ratio = GameState.level_stats.get_treasure_ratio()
-	
-	# Calculate bonus (100% on each ratio = 10000 bonus)
-	bonus_points = 0
-	if kill_ratio == 100:
-		bonus_points += 10000
-	if secret_ratio == 100:
-		bonus_points += 10000
-	if treasure_ratio == 100:
-		bonus_points += 10000
-	
-	# Get PAR time for this level
-	_set_par_time()
-	
+	_load_assets()
+	_init_stats()
 	_create_ui()
+	
+	SoundManager.play_sfx("LEVELDONESND")
 
-func _load_character_pics() -> void:
-	# Load number pics (0-9)
+func _load_assets() -> void:
+	# Large numbers 0-9
 	for i in range(10):
-		var filename = "%03d_L_NUM%dPIC.png" % [42 + i, i]
-		char_pics[str(i)] = _load_pic(filename)
-	
-	# Load colon
+		char_pics[str(i)] = _load_pic("%03d_L_NUM%dPIC.png" % [42 + i, i])
 	char_pics[":"] = _load_pic("041_L_COLONPIC.png")
-	
-	# Load percent
 	char_pics["%"] = _load_pic("052_L_PERCENTPIC.png")
-	
-	# Load letters A-Z
-	var letter_start = 53
 	for i in range(26):
-		var letter = char("A".unicode_at(0) + i)
-		var filename = "%03d_L_%sPIC.png" % [letter_start + i, letter]
-		char_pics[letter] = _load_pic(filename)
+		var L = char("A".unicode_at(0) + i)
+		char_pics[L] = _load_pic("%03d_L_%sPIC.png" % [53 + i, L])
 	
-	# Load special characters
-	char_pics["!"] = _load_pic("079_L_EXPOINTPIC.png")
-	char_pics["'"] = _load_pic("080_L_APOSTROPHEPIC.png")
+	# HUD digits 0-9 (+ blank)
+	hud_digit_textures.append(_load_pic("095_N_BLANKPIC.png"))
+	for i in range(10):
+		hud_digit_textures.append(_load_pic("%03d_N_%dPIC.png" % [96 + i, i]))
 	
-	# Load BJ pics for animation
+	# BJ Face textures (just a few for the HUD)
+	for i in range(3):
+		face_textures.append(_load_pic("%03d_FACE1%sPIC.png" % [106 + i, ["A","B","C"][i]]))
+	
+	# BJ Breathing pics
 	bj_textures.append(_load_pic("040_L_GUYPIC.png"))
 	bj_textures.append(_load_pic("081_L_GUY2PIC.png"))
-
-func _set_par_time() -> void:
-	# PAR times from original Wolf3D (episode 1 for now)
-	var par_times = [
-		[1.5, "01:30"], [2.0, "02:00"], [2.0, "02:00"], [3.5, "03:30"], [3.0, "03:00"],
-		[3.0, "03:00"], [2.5, "02:30"], [2.5, "02:30"], [0.0, "??:??"], [0.0, "??:??"]
-	]
+	if bj_textures.size() >= 2:
+		print("LevelComplete: Loaded BJ textures: ", bj_textures[0].get_size(), " and ", bj_textures[1].get_size())
 	
-	var level_idx = (GameState.current_map) % 10
-	if level_idx < par_times.size():
-		par_time = par_times[level_idx][0] * 60.0  # Convert minutes to seconds
-		par_time_str = par_times[level_idx][1]
-	else:
-		par_time = 90.0
-		par_time_str = "01:30"
+	# Status bar background
+	statusbar_texture = _load_pic("083_STATUSBARPIC.png")
+	
+	# Weapons for HUD
+	weapon_textures.append(_load_pic("088_KNIFEPIC.png"))
+	weapon_textures.append(_load_pic("089_GUNPIC.png"))
+	weapon_textures.append(_load_pic("090_MACHINEGUNPIC.png"))
+	weapon_textures.append(_load_pic("091_GATLINGGUNPIC.png"))
+
+func _init_stats() -> void:
+	floor_num = GameState.current_map + 1
+	if GameState.level_stats:
+		final_time_taken = GameState.level_stats.level_time
+		final_kill_ratio = GameState.level_stats.get_kill_ratio()
+		final_secret_ratio = GameState.level_stats.get_secret_ratio()
+		final_treasure_ratio = GameState.level_stats.get_treasure_ratio()
+	
+	var par_times = [1.5, 2, 2, 3.5, 3, 3, 2.5, 2.5, 0, 0]
+	var par_strs = ["01:30", "02:00", "02:00", "03:30", "03:00", "03:00", "02:30", "02:30", "??:??", "??:??"]
+	var idx = GameState.current_map % 10
+	var par_sec = par_times[idx] * 60.0
+	par_time_str = par_strs[idx]
+	
+	if final_time_taken < par_sec and par_sec > 0:
+		time_bonus_total = int(par_sec - final_time_taken) * 500
 
 func _create_ui() -> void:
-	# Original Wolf3D intermission background: RGB(0, 65, 65) - dark teal/cyan
-	# The intermission only covers the game area (160 pixels in original 320x200)
-	# The status bar (40 pixels at bottom) remains visible!
-	# Original code: VWB_Bar(0,0,320,200-STATUSLINES,127) where STATUSLINES=40
+	var win_w = get_viewport().get_visible_rect().size.x
+	var win_h = get_viewport().get_visible_rect().size.y
+	
+	# Background (fills the summary area - top 80%)
 	var bg = ColorRect.new()
-	bg.color = Color(0.0 / 255.0, 65.0 / 255.0, 65.0 / 255.0, 1.0)  # RGB(0, 65, 65)
-	# Only cover game area, not HUD (160 out of 200 pixels in original = 80%)
-	var game_area_height = 160.0 * scale_factor  # Original game area was 160 pixels
-	bg.position = Vector2(0, 0)
-	bg.size = Vector2(320.0 * scale_factor, game_area_height)
+	bg.color = Color(0.0, 65.0/255.0, 65.0/255.0, 1.0)
+	bg.size = Vector2(win_w, 160 * scale_factor)
 	add_child(bg)
 	
-	# Container for text
+	# BJ Breathing Sprite
+	bj_sprite = TextureRect.new()
+	bj_sprite.texture = bj_textures[0]
+	bj_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	bj_sprite.stretch_mode = TextureRect.STRETCH_SCALE
+	bj_sprite.position = Vector2(0, 16 * scale_factor)
+	bj_sprite.size = Vector2(bj_textures[0].get_width() * scale_factor, bj_textures[0].get_height() * scale_factor)
+	add_child(bj_sprite)
+	
+	# Text Container
 	text_container = Control.new()
-	text_container.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(text_container)
 	
-	# BJ Blazkowicz pic at (0, 16) in original coordinates
-	bj_sprite = TextureRect.new()
-	if bj_textures.size() > 0 and bj_textures[0]:
-		bj_sprite.texture = bj_textures[0]
-		bj_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		bj_sprite.stretch_mode = TextureRect.STRETCH_SCALE
-		bj_sprite.position = Vector2(0, 16 * scale_factor)
-		bj_sprite.size = Vector2(bj_textures[0].get_width() * scale_factor, bj_textures[0].get_height() * scale_factor)
-		add_child(bj_sprite)
-	
-	# Draw all text using original coordinates (in 8-pixel grid units)
-	# "FLOOR" at (14, 2) and "\nCOMPLETED" 
+	# Static Text - using 320x200 grid
 	_write(14, 2, "FLOOR")
 	_write(14, 4, "COMPLETED")
-	
-	# Floor number at (26, 2)
 	_write(26, 2, str(floor_num))
-	
-	# "BONUS" at (14, 7) with value
 	_write(14, 7, "BONUS")
-	var bonus_str = str(bonus_points)
-	var bonus_x = 36 - len(bonus_str) * 2  # Right-align
-	_write(bonus_x, 7, bonus_str)
-	
-	# "TIME" at (16, 10) with value
 	_write(16, 10, "TIME")
-	var minutes = int(time_taken) / 60
-	var seconds = int(time_taken) % 60
-	if minutes > 99:
-		minutes = 99
-		seconds = 99
-	# Draw time at position 26
-	_write_time(26, 10, minutes, seconds)
-	
-	# "PAR" at (16, 12) with value
+	var m = int(final_time_taken) / 60
+	var s = int(final_time_taken) % 60
+	_write(26, 10, "%02d:%02d" % [m, s])
 	_write(16, 12, "PAR")
 	_write(26, 12, par_time_str)
-	
-	# Ratio labels and values
-	# "KILL RATIO" at (9, 14)
 	_write(9, 14, "KILL RATIO")
-	var kr_str = str(kill_ratio) + "%"
-	_write(37 - len(kr_str) * 2, 14, kr_str)
-	
-	# "SECRET RATIO" at (5, 16)
 	_write(5, 16, "SECRET RATIO")
-	var sr_str = str(secret_ratio) + "%"
-	_write(37 - len(sr_str) * 2, 16, sr_str)
-	
-	# "TREASURE RATIO" at (1, 18)  
 	_write(1, 18, "TREASURE RATIO")
-	var tr_str = str(treasure_ratio) + "%"
-	_write(37 - len(tr_str) * 2, 18, tr_str)
+	
+	# Dynamic Text Labels (placeholders)
+	label_bonus = _create_align_group(36, 7)
+	label_kill = _create_align_group(37, 14)
+	label_secret = _create_align_group(37, 16)
+	label_treasure = _create_align_group(37, 18)
+	
+	# Status Bar Replica at the bottom
+	statusbar_rect = TextureRect.new()
+	statusbar_rect.texture = statusbar_texture
+	statusbar_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	statusbar_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	statusbar_rect.size = Vector2(win_w, 40 * scale_factor)
+	statusbar_rect.position = Vector2(0, 160 * scale_factor)
+	add_child(statusbar_rect)
+	
+	# HUD Numbers
+	hud_score_digits = _create_hud_digits(POS_SCORE_X, 6)
+	hud_level_digits = _create_hud_digits(POS_LEVEL_X, 2)
+	hud_lives_digit = _create_hud_digits(POS_LIVES_X, 1)[0]
+	hud_health_digits = _create_hud_digits(POS_HEALTH_X, 3)
+	hud_ammo_digits = _create_hud_digits(POS_AMMO_X, 2)
+	
+	# HUD Icons
+	hud_face = TextureRect.new()
+	hud_face.texture = face_textures[0]
+	hud_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	hud_face.stretch_mode = TextureRect.STRETCH_SCALE
+	hud_face.position = Vector2(POS_FACE_X * scale_factor, 4 * scale_factor)
+	hud_face.size = Vector2(24 * scale_factor, 32 * scale_factor)
+	statusbar_rect.add_child(hud_face)
+	
+	hud_weapon = TextureRect.new()
+	hud_weapon.texture = weapon_textures[clampi(GameState.weapon, 0, 3)]
+	hud_weapon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	hud_weapon.stretch_mode = TextureRect.STRETCH_SCALE
+	hud_weapon.position = Vector2(256 * scale_factor, 4 * scale_factor)
+	hud_weapon.size = Vector2(48 * scale_factor, 24 * scale_factor)
+	statusbar_rect.add_child(hud_weapon)
+	
+	# Initial draw
+	_update_summary()
+	_update_hud()
 
-func _write(grid_x: int, grid_y: int, text: String) -> void:
-	# Convert grid coordinates to pixels (8 pixels per grid unit)
-	var px = grid_x * 8
-	var py = grid_y * 8
+func _create_hud_digits(gx: int, count: int) -> Array[TextureRect]:
+	var result: Array[TextureRect] = []
+	for i in range(count):
+		var tr = TextureRect.new()
+		tr.texture = hud_digit_textures[0] # Blank
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.position = Vector2((gx + i * 8) * scale_factor, POS_NUMBER_Y * scale_factor)
+		tr.size = Vector2(8 * scale_factor, 16 * scale_factor)
+		statusbar_rect.add_child(tr)
+		result.append(tr)
+	return result
+
+func _create_align_group(gx: int, gy: int) -> Node2D:
+	var node = Node2D.new()
+	node.position = Vector2(gx * 8 * scale_factor, gy * 8 * scale_factor)
+	text_container.add_child(node)
+	return node
+
+func _update_summary() -> void:
+	_set_aligned_text(label_bonus, str(display_bonus))
+	_set_aligned_text(label_kill, str(display_kill) + "%")
+	_set_aligned_text(label_secret, str(display_secret) + "%")
+	_set_aligned_text(label_treasure, str(display_treasure) + "%")
+
+func _set_aligned_text(container: Node2D, text: String) -> void:
+	for child in container.get_children():
+		child.queue_free()
 	
-	var current_x = px
+	var length = 0
+	for ch in text:
+		length += 8 if ch == ":" else 16
 	
+	var cx = -length * scale_factor
 	for ch in text.to_upper():
 		if ch == " ":
-			current_x += CHAR_WIDTH
-			continue
-		elif ch == "\n":
-			current_x = px
-			py += CHAR_WIDTH
-			continue
-		elif ch == ":":
-			_draw_char(current_x, py, ch)
-			current_x += CHAR_SMALL
-			continue
+			cx += 16 * scale_factor
 		else:
-			_draw_char(current_x, py, ch)
-			current_x += CHAR_WIDTH
+			var tex = char_pics.get(ch)
+			if tex:
+				var tr = TextureRect.new()
+				tr.texture = tex
+				tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				tr.stretch_mode = TextureRect.STRETCH_SCALE
+				tr.position = Vector2(cx, 0)
+				tr.size = Vector2(tex.get_width() * scale_factor, tex.get_height() * scale_factor)
+				container.add_child(tr)
+			cx += (8 if ch == ":" else 16) * scale_factor
 
-func _write_time(grid_x: int, grid_y: int, minutes: int, seconds: int) -> void:
-	# Draw time in MM:SS format using number pics
-	var px = grid_x * 8
-	var py = grid_y * 8
-	
-	# Minutes tens digit
-	_draw_char(px, py, str(minutes / 10))
-	px += CHAR_WIDTH
-	# Minutes ones digit
-	_draw_char(px, py, str(minutes % 10))
-	px += CHAR_WIDTH
-	# Colon
-	_draw_char(px, py, ":")
-	px += CHAR_SMALL
-	# Seconds tens digit
-	_draw_char(px, py, str(seconds / 10))
-	px += CHAR_WIDTH
-	# Seconds ones digit
-	_draw_char(px, py, str(seconds % 10))
+func _update_hud() -> void:
+	_latch_hud(hud_score_digits, 6, GameState.score)
+	_latch_hud(hud_level_digits, 2, GameState.current_map + 1)
+	_latch_hud([hud_lives_digit], 1, max(GameState.lives, 0))
+	_latch_hud(hud_health_digits, 3, GameState.health)
+	_latch_hud(hud_ammo_digits, 2, GameState.ammo)
 
-func _draw_char(x: float, y: float, ch: String) -> void:
-	if not char_pics.has(ch):
-		return
-	
-	var texture = char_pics[ch]
-	if texture == null:
-		return
-	
-	var img = TextureRect.new()
-	img.texture = texture
-	img.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	img.stretch_mode = TextureRect.STRETCH_SCALE
-	img.position = Vector2(x * scale_factor, y * scale_factor)
-	img.size = Vector2(texture.get_width() * scale_factor, texture.get_height() * scale_factor)
-	text_container.add_child(img)
-
-func _load_pic(filename: String) -> Texture2D:
-	var path = PICS_PATH + filename
-	var texture = load(path) as Texture2D
-	if texture:
-		return texture
-	# Try loading as raw image file
-	var image = Image.load_from_file(path)
-	if image:
-		return ImageTexture.create_from_image(image)
-	return null
+func _latch_hud(digits: Array[TextureRect], width: int, number: int) -> void:
+	var s = str(number)
+	var l = s.length()
+	var idx = 0
+	while idx < width - l:
+		digits[idx].texture = hud_digit_textures[0]
+		idx += 1
+	var si = 0
+	while idx < width:
+		var v = s[si].unicode_at(0) - 48
+		digits[idx].texture = hud_digit_textures[v + 1]
+		idx += 1
+		si += 1
 
 func _process(delta: float) -> void:
-	# BJ breathing animation
-	bj_anim_timer += delta
-	if bj_anim_timer >= BJ_BREATHE_INTERVAL:
-		bj_anim_timer = 0.0
-		bj_current_frame = 1 - bj_current_frame  # Toggle 0 <-> 1
-		if bj_sprite and bj_textures.size() > bj_current_frame and bj_textures[bj_current_frame]:
-			bj_sprite.texture = bj_textures[bj_current_frame]
+	# BJ Breathing
+	bj_timer += delta
+	if bj_timer >= 0.5:
+		bj_timer = 0.0
+		bj_frame = (bj_frame + 1) % bj_textures.size()
+		bj_sprite.texture = bj_textures[bj_frame]
+	
+	# Counting
+	if current_phase == Phase.DONE: return
+	
+	count_timer += delta
+	if count_timer < 0.02: return
+	count_timer = 0.0
+	
+	match current_phase:
+		Phase.TIME_BONUS:
+			if display_bonus < time_bonus_total:
+				display_bonus = min(display_bonus + 500, time_bonus_total)
+				if display_bonus % 1000 == 0: SoundManager.play_sfx("ENDBONUS1SND")
+				_update_summary()
+			else:
+				SoundManager.play_sfx("ENDBONUS2SND")
+				current_phase = Phase.KILL_RATIO
+		Phase.KILL_RATIO:
+			if display_kill < final_kill_ratio:
+				display_kill += 1
+				if display_kill % 10 == 0: SoundManager.play_sfx("ENDBONUS1SND")
+				_update_summary()
+			else:
+				_phase_complete(final_kill_ratio, Phase.SECRET_RATIO)
+		Phase.SECRET_RATIO:
+			if display_secret < final_secret_ratio:
+				display_secret += 1
+				if display_secret % 10 == 0: SoundManager.play_sfx("ENDBONUS1SND")
+				_update_summary()
+			else:
+				_phase_complete(final_secret_ratio, Phase.TREASURE_RATIO)
+		Phase.TREASURE_RATIO:
+			if display_treasure < final_treasure_ratio:
+				display_treasure += 1
+				if display_treasure % 10 == 0: SoundManager.play_sfx("ENDBONUS1SND")
+				_update_summary()
+			else:
+				_phase_complete(final_treasure_ratio, Phase.DONE)
+				_finish()
+
+func _phase_complete(ratio: int, next: Phase) -> void:
+	if ratio == 100: SoundManager.play_sfx("PERCENT100SND")
+	elif ratio == 0: SoundManager.play_sfx("NOITEMSND")
+	else: SoundManager.play_sfx("ENDBONUS2SND")
+	current_phase = next
+
+func _finish() -> void:
+	var total = time_bonus_total
+	if final_kill_ratio == 100: total += 10000
+	if final_secret_ratio == 100: total += 10000
+	if final_treasure_ratio == 100: total += 10000
+	GameState.give_points(total)
+	_update_hud()
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey or event is InputEventMouseButton:
-		if event.pressed:
-			# Add bonus to score
-			GameState.give_points(bonus_points)
-			
-			# Proceed to next level
-			GameState.current_map += 1
-			
-			# Update the map path to the next level
-			var next_map_path = _get_next_map_path()
-			if next_map_path != "":
-				GameState.selected_map_path = next_map_path
-				GameState.start_level()
-				
-				# Unpause and reload scene for next level
-				get_tree().paused = false
-				get_tree().reload_current_scene()
-			else:
-				# No more levels - back to main menu
-				get_tree().paused = false
-				get_tree().change_scene_to_file("res://main.tscn")
-			
-			queue_free()
+	if (event is InputEventKey or event is InputEventMouseButton) and event.pressed:
+		if current_phase != Phase.DONE:
+			_skip()
+		else:
+			_proceed()
 
-func _get_next_map_path() -> String:
-	# Scan maps folder and find the map at current_map index
-	var maps_path = "user://assets/%s/maps/json/" % GameState.selected_game
-	var dir = DirAccess.open(maps_path)
-	if dir == null:
-		return ""
-	
-	var map_files: Array[String] = []
-	dir.list_dir_begin()
-	var file_name = dir.get_next()
-	while file_name != "":
-		if file_name.ends_with(".json"):
-			map_files.append(file_name)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	
-	# Sort by filename
-	map_files.sort()
-	
-	# Get the map at current_map index
-	if GameState.current_map < map_files.size():
-		return maps_path + map_files[GameState.current_map]
-	
-	return ""  # No more maps
+func _skip() -> void:
+	display_bonus = time_bonus_total
+	display_kill = final_kill_ratio
+	display_secret = final_secret_ratio
+	display_treasure = final_treasure_ratio
+	_update_summary()
+	_finish()
+
+func _proceed() -> void:
+	GameState.current_map += 1
+	var next = _get_next_path()
+	if next != "":
+		GameState.selected_map_path = next
+		get_tree().paused = false
+		get_tree().reload_current_scene()
+	else:
+		get_tree().paused = false
+		get_tree().change_scene_to_file("res://main.tscn")
+	queue_free()
+
+func _get_next_path() -> String:
+	var p = "user://assets/%s/maps/json/" % GameState.selected_game
+	var d = DirAccess.open(p)
+	if not d: return ""
+	var fs: Array[String] = []
+	d.list_dir_begin()
+	var f = d.get_next()
+	while f != "":
+		if f.ends_with(".json"): fs.append(f)
+		f = d.get_next()
+	d.list_dir_end()
+	fs.sort()
+	if GameState.current_map < fs.size(): return p + fs[GameState.current_map]
+	return ""
+
+func _write(gx: int, gy: int, text: String) -> void:
+	var px = gx * 8 * scale_factor
+	var py = gy * 8 * scale_factor
+	var cx = px
+	for ch in text.to_upper():
+		if ch == " ": cx += 16 * scale_factor
+		else:
+			var tex = char_pics.get(ch)
+			if tex:
+				var tr = TextureRect.new()
+				tr.texture = tex
+				tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				tr.stretch_mode = TextureRect.STRETCH_SCALE
+				tr.position = Vector2(cx, py)
+				tr.size = Vector2(tex.get_width() * scale_factor, tex.get_height() * scale_factor)
+				text_container.add_child(tr)
+			cx += (8 if ch == ":" else 16) * scale_factor
+
+func _load_pic(f: String) -> Texture2D:
+	var p = PICS_PATH + f
+	var t = load(p) as Texture2D
+	if t: return t
+	var i = Image.load_from_file(p)
+	return ImageTexture.create_from_image(i) if i else null

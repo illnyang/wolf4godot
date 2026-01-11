@@ -25,6 +25,7 @@ func _process(delta: float) -> void:
 			auto_close_timer -= delta
 			if auto_close_timer <= 0:
 				current_state = State.CLOSING
+				SoundManager.play_sfx("CLOSEDOORSND")
 				
 		State.CLOSING:
 			open_ratio = move_toward(open_ratio, 0.0, delta * slide_speed)
@@ -38,7 +39,7 @@ func _apply_slide() -> void:
 func interact() -> void:
 	if current_state == State.CLOSED or current_state == State.CLOSING:
 		current_state = State.OPENING
-		SoundManager.play_sound(SoundManager.SoundID.OPENDOORSND)
+		SoundManager.play_sfx("OPENDOORSND")
 	elif current_state == State.OPEN:
 		current_state = State.CLOSING
 

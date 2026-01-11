@@ -10,17 +10,22 @@ var secret_total: int = 0
 var treasure_count: int = 0
 var treasure_total: int = 0
 
+var stored_time: float = 0.0
 var time_start_msec: int = 0
 
 # Computed property for level time in seconds
 var level_time: float:
 	get:
-		return float(Time.get_ticks_msec() - time_start_msec) / 1000.0
+		return stored_time + float(Time.get_ticks_msec() - time_start_msec) / 1000.0
 
 func start_level():
 	kill_count = 0
+	kill_total = 0
 	secret_count = 0
+	secret_total = 0
 	treasure_count = 0
+	treasure_total = 0
+	stored_time = 0.0
 	time_start_msec = Time.get_ticks_msec()
 
 func get_time_seconds() -> int:

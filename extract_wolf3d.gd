@@ -148,10 +148,12 @@ func _extract_game(game_type: GameType) -> void:
 	DirAccess.make_dir_recursive_absolute(current_output_path + "sounds")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "music")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "pics")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "fonts")
 	
 	extract_maps()
 	extract_vswap()
 	extract_audio()  # Extract IMF music from AUDIOT
+	extract_adlib_sounds()  # Extract AdLib beep sounds from AUDIOT
 	extract_vgagraph()  # Extract pics from VGAGRAPH
 	
 #func already_extracted() -> bool:
@@ -495,19 +497,75 @@ func extract_vswap():
 		var sprite_data = vswap.get_buffer(length)
 		save_sprite(sprite_data, i - sprite_start)
 	
-	# Extract digitized sounds (chunks sound_start to end)
-	var num_sounds = num_chunks - sound_start
-	print("-> Extracting %d sounds..." % num_sounds)
-	for i in range(sound_start, num_chunks):
-		var offset = chunk_offsets[i]
-		var length = chunk_lengths[i]
+	# Extract digitized sounds using sound info page (last chunk)
+	# The last chunk contains (startpage, length) pairs for each logical sound
+	var sound_info_offset = chunk_offsets[num_chunks - 1]
+	var sound_info_length = chunk_lengths[num_chunks - 1]
+	
+	if sound_info_length == 0:
+		print("--> No sound info page found, extracting sounds individually...")
+		# Fallback to old method
+		var num_sounds_fallback = num_chunks - sound_start - 1
+		for i in range(sound_start, num_chunks - 1):
+			var offset = chunk_offsets[i]
+			var length = chunk_lengths[i]
+			if length == 0:
+				continue
+			vswap.seek(offset)
+			var sound_data = vswap.get_buffer(length)
+			save_sound_as_wav(sound_data, i - sound_start, "DIGI_%03d" % (i - sound_start))
+	else:
+		# Read sound info page to get (startpage, length) pairs
+		vswap.seek(sound_info_offset)
+		var sound_info_data = vswap.get_buffer(sound_info_length)
 		
-		if length == 0:
-			continue
+		# Each entry is 4 bytes: 2 bytes startpage + 2 bytes length
+		var num_digi = sound_info_length / 4
+		print("--> Sound info page found: %d digitized sounds" % num_digi)
 		
-		vswap.seek(offset)
-		var sound_data = vswap.get_buffer(length)
-		save_sound_as_wav(sound_data, i - sound_start)
+		for snd_idx in range(num_digi):
+			var info_offset = snd_idx * 4
+			if info_offset + 3 >= sound_info_data.size():
+				break
+			
+			var start_page = sound_info_data.decode_u16(info_offset)
+			var sound_length = sound_info_data.decode_u16(info_offset + 2)
+			
+			# startpage is relative to sound_start
+			var absolute_chunk = sound_start + start_page
+			
+			if absolute_chunk >= num_chunks - 1 or sound_length == 0:
+				continue
+			
+			# Collect data from all pages that make up this sound
+			var combined_data = PackedByteArray()
+			var remaining_length = sound_length
+			var current_chunk = absolute_chunk
+			
+			while remaining_length > 0 and current_chunk < num_chunks - 1:
+				var chunk_offset = chunk_offsets[current_chunk]
+				var chunk_length = chunk_lengths[current_chunk]
+				
+				if chunk_length == 0:
+					current_chunk += 1
+					continue
+				
+				vswap.seek(chunk_offset)
+				var bytes_to_read = mini(chunk_length, remaining_length)
+				var page_data = vswap.get_buffer(bytes_to_read)
+				combined_data.append_array(page_data)
+				
+				remaining_length -= bytes_to_read
+				current_chunk += 1
+			
+			# Get sound name
+			var sound_name = "DIGI_%03d" % snd_idx
+			if snd_idx < DIGI_SOUND_NAMES.size():
+				sound_name = DIGI_SOUND_NAMES[snd_idx]
+			
+			save_sound_as_wav(combined_data, snd_idx, sound_name)
+		
+		print("--> Extracted %d digitized sounds" % num_digi)
 	
 	vswap.close()
 	print("-> VSWAP extraction complete")
@@ -713,16 +771,18 @@ func tile_to_color(tile: int) -> Color:
 #-----------------------------------------------------
 # Sound Extraction - Convert raw PCM to WAV
 #-----------------------------------------------------
-func save_sound_as_wav(data: PackedByteArray, sound_id: int) -> void:
+func save_sound_as_wav(data: PackedByteArray, sound_id: int, sound_name: String = "") -> void:
 	if data.size() == 0:
 		return
 	
-	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, ~7000 Hz
-	const SAMPLE_RATE = 7000
+	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, 7042 Hz (original rate)
+	const SAMPLE_RATE = 7042
 	const BITS_PER_SAMPLE = 8
 	const NUM_CHANNELS = 1
 	
-	var filename = "%ssounds/DIGI_%03d.wav" % [current_output_path, sound_id]
+	# Use provided name or fall back to numbered format
+	var name_part = sound_name if sound_name != "" else "DIGI_%03d" % sound_id
+	var filename = "%ssounds/%s.wav" % [current_output_path, name_part]
 	var file = FileAccess.open(filename, FileAccess.WRITE)
 	if file == null:
 		push_error("Cannot create sound file: " + filename)
@@ -775,6 +835,224 @@ const MUSIC_NAMES = [
 	"FUNKYOU", "ENDLEVEL", "GOINGAFT", "PREGNANT", "ULTIMATE",
 	"NAZI_RAP", "ZEROHOUR", "TWELFTH", "ROSTER", "URAHERO", "VICMARCH", "PACMAN"
 ]
+
+# Wolf3D digitized sound names (matching VSWAP order from your screenshot)
+# These correspond to the sounds in the sound info page
+const DIGI_SOUND_NAMES = [
+	"HALTSND", "DOGBARKSND", "CLOSEDOORSND", "OPENDOORSND", "ATKMACHINEGUNSND",
+	"ATKPISTOLSND", "ATKGATLINGSND", "SCHUTZADSND", "GUTENTAGSND", "MUTTISND",
+	"BOSSFIRESND", "SSFIRESND", "DEATHSCREAM1SND", "DEATHSCREAM2SND", "TAKEDAMAGESND",
+	"PUSHWALLSND", "DOGDEATHSND", "AHHHGSND", "DIESND", "EVASND",
+	"LEBENSND", "NAZIFIRESND", "SLURPIESND", "TOT_HUNDSND", "MEINGOTTSND",
+	"SCHABBSHASND", "HITLERHASND", "SPIONSND", "NEINSOVASSND", "DOGATTACKSND",
+	"LEVELDONESND", "MECHSTEPSND", "YEAHSND", "SCHEISTSND", "DEATHSCREAM4SND",
+	"DEATHSCREAM5SND", "DONNERSND", "EINESND", "ERLAUBENSND", "DEATHSCREAM6SND",
+	"DEATHSCREAM7SND", "DEATHSCREAM8SND", "DEATHSCREAM9SND", "KEINSND", "MEINSND",
+	"ROSESND"
+]
+
+# AdLib sound names (from AUDIOWL6.H) - these are synthesized beeps stored in AUDIOT
+const ADLIB_SOUND_NAMES = [
+	"HITWALLSND", "SELECTWPNSND", "SELECTITEMSND", "HEARTBEATSND", "MOVEGUN2SND",
+	"MOVEGUN1SND", "NOWAYSND", "NAZIHITPLAYERSND", "SCHABBSTHROWSND", "PLAYERDEATHSND",
+	"DOGDEATHSND_AL", "ATKGATLINGSND_AL", "GETKEYSND", "NOITEMSND", "WALK1SND",
+	"WALK2SND", "TAKEDAMAGESND_AL", "GAMEOVERSND", "OPENDOORSND_AL", "CLOSEDOORSND_AL",
+	"DONOTHINGSND", "HALTSND_AL", "DEATHSCREAM2SND_AL", "ATKKNIFESND", "ATKPISTOLSND_AL",
+	"DEATHSCREAM3SND", "ATKMACHINEGUNSND_AL", "HITENEMYSND", "SHOOTDOORSND", "DEATHSCREAM1SND_AL",
+	"GETMACHINESND", "GETAMMOSND", "SHOOTSND", "HEALTH1SND", "HEALTH2SND",
+	"BONUS1SND", "BONUS2SND", "BONUS3SND", "GETGATLINGSND", "ESCPRESSEDSND",
+	"LEVELDONESND_AL", "DOGBARKSND_AL", "ENDBONUS1SND", "ENDBONUS2SND", "BONUS1UPSND",
+	"BONUS4SND", "PUSHWALLSND_AL", "NOBONUSSND", "PERCENT100SND", "BOSSACTIVESND",
+	"MUTTISND_AL", "SCHUTZADSND_AL", "AHHHGSND_AL", "DIESND_AL", "EVASND_AL",
+	"GUTENTAGSND_AL", "LEBENSND_AL", "SCHEISTSND_AL", "NAZIFIRESND_AL", "BOSSFIRESND_AL",
+	"SSFIRESND_AL", "SLURPIESND_AL", "TOTHUNDSND_AL", "MEINGOTTSND_AL", "SCHABBSHASND_AL",
+	"HITLERHASND_AL", "SPIONSND_AL", "NEINSOVASSND_AL", "DOGATTACKSND_AL", "FLAMETHROWERSND",
+	"MECHSTEPSND_AL", "GOOBSSND", "YEAHSND_AL", "DEATHSCREAM4SND_AL", "DEATHSCREAM5SND_AL",
+	"DEATHSCREAM6SND_AL", "DEATHSCREAM7SND_AL", "DEATHSCREAM8SND_AL", "DEATHSCREAM9SND_AL",
+	"DONNERSND_AL", "EINESND_AL", "ERLAUBENSND_AL", "KEINSND_AL", "MEINSND_AL",
+	"ROSESND_AL", "MISSILEFIRESND", "MISSILEHITSND"
+]
+
+#-----------------------------------------------------
+# AdLib Sound Extraction - Convert OPL2 data to WAV
+#-----------------------------------------------------
+# AdLib sounds are OPL2 FM synthesis data. We use a simplified square wave
+# approximation to convert them to playable WAV files.
+
+func extract_adlib_sounds() -> void:
+	print("Extracting AdLib sounds from AUDIOT...")
+	
+	var audiohed_path = current_data_path + "AUDIOHED" + current_extension
+	var audiot_path = current_data_path + "AUDIOT" + current_extension
+	
+	var audiohed = FileAccess.open(audiohed_path, FileAccess.READ)
+	if audiohed == null:
+		print("--> No AUDIOHED found, skipping AdLib extraction")
+		return
+	
+	var audiot = FileAccess.open(audiot_path, FileAccess.READ)
+	if audiot == null:
+		audiohed.close()
+		print("--> No AUDIOT found, skipping AdLib extraction")
+		return
+	
+	# Read all offsets from AUDIOHED (32-bit each)
+	var offsets: Array[int] = []
+	while audiohed.get_position() < audiohed.get_length():
+		offsets.append(audiohed.get_32())
+	audiohed.close()
+	
+	var num_chunks = offsets.size() - 1
+	
+	# In Wolf3D, AdLib sounds start at index LASTSOUND (NUMSOUNDS)
+	# PC speaker sounds are 0 to LASTSOUND-1
+	# AdLib sounds are LASTSOUND to 2*LASTSOUND-1
+	# We estimate LASTSOUND as ~87 based on audiowl6.h
+	var lastsound = 87
+	var adlib_start = lastsound  # AdLib sounds start after PC speaker sounds
+	
+	print("--> Extracting AdLib sounds (indices %d to %d)" % [adlib_start, adlib_start + lastsound - 1])
+	
+	var sounds_dir = current_output_path + "sounds/"
+	DirAccess.make_dir_recursive_absolute(sounds_dir)
+	
+	var extracted = 0
+	for i in range(lastsound):
+		var chunk_idx = adlib_start + i
+		if chunk_idx >= num_chunks:
+			break
+		
+		var offset = offsets[chunk_idx]
+		var next_offset = offsets[chunk_idx + 1] if chunk_idx + 1 < offsets.size() else audiot.get_length()
+		
+		# Skip invalid offsets
+		if offset == 0xFFFFFFFF or offset >= audiot.get_length():
+			continue
+		if next_offset == 0xFFFFFFFF:
+			continue
+		
+		var chunk_size = next_offset - offset
+		if chunk_size < 24:  # Minimum AdLib sound header is 24 bytes
+			continue
+		
+		audiot.seek(offset)
+		
+		# Read AdLib sound header (6 byte SoundCommon + 16 byte Instrument + 1 byte block)
+		var length = audiot.get_32()  # Data length
+		var priority = audiot.get_16() # Priority
+		
+		# Read instrument data (16 bytes) - we'll use simplified synthesis
+		var inst_data = audiot.get_buffer(16)
+		
+		# Read block (octave selector)
+		var block = audiot.get_8()
+		
+		# Read sound data
+		if length == 0 or length > chunk_size - 23:
+			continue
+		
+		var data = audiot.get_buffer(length)
+		
+		# Convert AdLib data to WAV using simplified synthesis
+		var pcm_data = _render_adlib_to_pcm(data, block, inst_data)
+		
+		if pcm_data.size() > 0:
+			var sound_name = "ADLIB_%03d" % i
+			if i < ADLIB_SOUND_NAMES.size():
+				sound_name = ADLIB_SOUND_NAMES[i]
+			
+			_save_adlib_wav(pcm_data, sound_name)
+			extracted += 1
+	
+	audiot.close()
+	print("--> Extracted %d AdLib sounds" % extracted)
+
+func _render_adlib_to_pcm(data: PackedByteArray, block: int, inst: PackedByteArray) -> PackedByteArray:
+	# Simplified AdLib rendering using square wave synthesis
+	# Real OPL2 uses FM synthesis, but square waves give recognizable beeps
+	
+	const SAMPLE_RATE = 22050  # Output sample rate
+	const TICK_RATE = 140.0    # Wolf3D runs AdLib at 140 Hz
+	const SAMPLES_PER_TICK = SAMPLE_RATE / TICK_RATE
+	
+	var result = PackedByteArray()
+	
+	# OPL2 frequency calculation:
+	# Each sound has its own block (octave) value stored in header
+	# Freq = F-Number * 49716 / (2^(20-Block))
+	# Block ranges from 0-7, each step doubles the frequency
+	var octave = block & 7
+	print("  Block/octave for this sound: %d" % octave)
+	
+	var phase = 0.0
+	
+	for byte_idx in range(data.size()):
+		var freq_low = data[byte_idx]
+		
+		if freq_low == 0:
+			# Silence - output silence samples
+			for s in range(int(SAMPLES_PER_TICK)):
+				result.append(128)  # 8-bit silence (unsigned)
+		else:
+			# Calculate frequency directly using OPL2 formula
+			# F-Number is what's stored in the data byte (0-255)
+			var f_number = float(freq_low)
+			
+			# OPL2 formula: Freq = F-Number * 49716 / (2^(20-Block))
+			# This gives the correct frequency based on each sound's octave
+			var freq = (f_number * 49716.0) / pow(2, 20 - octave)
+			
+			# Clamp frequency to audible range
+			freq = clamp(freq, 50.0, 10000.0)
+			
+			# Generate square wave samples for this tick
+			var phase_inc = freq / SAMPLE_RATE
+			
+			for s in range(int(SAMPLES_PER_TICK)):
+				# Square wave with reduced amplitude for less harsh sound
+				var sample = 192 if sin(phase * TAU) > 0 else 64
+				result.append(sample)
+				phase += phase_inc
+				if phase >= 1.0:
+					phase -= 1.0
+	
+	return result
+
+func _save_adlib_wav(data: PackedByteArray, sound_name: String) -> void:
+	if data.size() == 0:
+		return
+	
+	const SAMPLE_RATE = 22050
+	var filename = "%ssounds/%s.wav" % [current_output_path, sound_name]
+	
+	var file = FileAccess.open(filename, FileAccess.WRITE)
+	if file == null:
+		return
+	
+	var data_size = data.size()
+	var file_size = 36 + data_size
+	
+	# WAV header
+	file.store_buffer("RIFF".to_ascii_buffer())
+	file.store_32(file_size)
+	file.store_buffer("WAVE".to_ascii_buffer())
+	
+	# fmt chunk
+	file.store_buffer("fmt ".to_ascii_buffer())
+	file.store_32(16)
+	file.store_16(1)  # PCM
+	file.store_16(1)  # Mono
+	file.store_32(SAMPLE_RATE)
+	file.store_32(SAMPLE_RATE)  # Byte rate
+	file.store_16(1)  # Block align
+	file.store_16(8)  # 8 bits
+	
+	# data chunk
+	file.store_buffer("data".to_ascii_buffer())
+	file.store_32(data_size)
+	file.store_buffer(data)
+	
+	file.close()
 
 func extract_audio() -> void:
 	print("Extracting audio (IMF music)...")
@@ -1024,6 +1302,9 @@ func extract_vgagraph() -> void:
 	var extracted = 0
 	var num_pics = mini(PIC_NAMES.size(), pic_table.size())
 	
+	# Extract fonts first (Chunks 1 and 2)
+	_extract_fonts(vgagraph, offsets, huffman_table)
+	
 	for i in range(num_pics):
 		var chunk_idx = STARTPICS + i
 		if chunk_idx >= offsets.size() - 1:
@@ -1213,3 +1494,89 @@ func _save_pic(data: PackedByteArray, width: int, height: int, pic_id: int, name
 	var err = img.save_png(filename)
 	if err != OK:
 		print("   Failed to save: ", filename)
+
+func _extract_fonts(vgagraph: FileAccess, offsets: Array[int], huffman_table: Array) -> void:
+	print("-> Extracting fonts (Chunks 1 and 2)...")
+	
+	for i in range(1, 3):  # Chunks 1 and 2 are fonts
+		var offset = offsets[i]
+		if offset < 0: continue
+		
+		# Find next valid offset for size
+		var j = i + 1
+		while j < offsets.size() and offsets[j] < 0: j += 1
+		if j >= offsets.size(): break
+		
+		var compressed_size = offsets[j] - offset
+		vgagraph.seek(offset)
+		var expanded_len = vgagraph.get_32()
+		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
+		
+		var decompressed = _huffman_expand(compressed_data, expanded_len, huffman_table)
+		if decompressed.size() < 770: continue # fontstruct is 770 bytes
+		
+		_save_font_atlas(decompressed, i)
+
+func _save_font_atlas(data: PackedByteArray, font_id: int) -> void:
+	# fontstruct: height (2), location[256] (512), width[256] (256)
+	var height = data.decode_u16(0)
+	var locations: Array[int] = []
+	for i in range(256):
+		locations.append(data.decode_u16(2 + i * 2))
+	var widths: Array[int] = []
+	for i in range(256):
+		widths.append(data[514 + i])
+	
+	# Calculate total width for atlas (16x16 grid)
+	var max_char_width = 0
+	for w in widths: max_char_width = max(max_char_width, w)
+	
+	var atlas_width = max_char_width * 16
+	var atlas_height = height * 16
+	
+	var img = Image.create(atlas_width, atlas_height, false, Image.FORMAT_RGBA8)
+	var font_metrics = {
+		"height": height,
+		"characters": {}
+	}
+	
+	for i in range(256):
+		var char_width = widths[i]
+		var char_loc = locations[i]
+		
+		if char_width == 0 or char_loc == 0 or char_loc >= data.size():
+			continue
+			
+		var col = i % 16
+		var row = i / 16
+		var atlas_x = col * max_char_width
+		var atlas_y = row * height
+		
+		# Copy character pixels
+		for y in range(height):
+			for x in range(char_width):
+				var src_idx = char_loc + y * char_width + x
+				if src_idx < data.size():
+					var val = data[src_idx]
+					if val != 0:
+						# Original drawer uses fontcolor, we'll use white for the atlas
+						img.set_pixel(atlas_x + x, atlas_y + y, Color.WHITE)
+					else:
+						img.set_pixel(atlas_x + x, atlas_y + y, Color(0,0,0,0))
+		
+		font_metrics["characters"][i] = {
+			"x": atlas_x,
+			"y": atlas_y,
+			"width": char_width
+		}
+	
+	var font_name = "FONT%d" % font_id
+	var base_path = "%sfonts/%s" % [current_output_path, font_name]
+	img.save_png(base_path + ".png")
+	
+	var json_file = FileAccess.open(base_path + ".json", FileAccess.WRITE)
+	if json_file:
+		json_file.store_string(JSON.stringify(font_metrics, "\t"))
+		json_file.close()
+	
+	print("   Extracted %s (%dpx high) to fonts/" % [font_name, height])

@@ -1,64 +1,91 @@
 # GameOver.gd
-# Wolf3D Game Over Screen with score display
+# Authentic Wolf3D High Score Board
 extends CanvasLayer
 
-var score_label: Label
-var message_label: Label
-var instruction_label: Label
+var scale_factor: float = 1.0
+
+# Available assets
+var high_score_texture: Texture2D
 
 func _ready() -> void:
-	# Create dark overlay
-	var overlay = ColorRect.new()
-	overlay.color = Color(0.1, 0, 0, 0.9)
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(overlay)
+	# Calculate scale
+	var window_size = get_viewport().get_visible_rect().size
+	scale_factor = window_size.x / 320.0
 	
-	# Create container for text
-	var container = VBoxContainer.new()
-	container.set_anchors_preset(Control.PRESET_CENTER)
-	container.alignment = BoxContainer.ALIGNMENT_CENTER
-	container.add_theme_constant_override("separation", 30)
-	add_child(container)
+	_load_assets()
+	_create_ui()
 	
-	# GAME OVER text
-	message_label = Label.new()
-	message_label.text = "GAME OVER"
-	message_label.add_theme_font_size_override("font_size", 64)
-	message_label.add_theme_color_override("font_color", Color.RED)
-	message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(message_label)
+	# Play game over sound (death scream)
+	SoundManager.play_sfx("DEATHSCREAM1SND")
+
+func _load_assets() -> void:
+	var game_id = GameState.selected_game if GameState.selected_game != "" else "wolf3d"
+	var path = "user://assets/%s/pics/087_HIGHSCORESPIC.png" % game_id
 	
-	# Score display
-	score_label = Label.new()
-	score_label.text = "FINAL SCORE: %d" % GameState.score
-	score_label.add_theme_font_size_override("font_size", 32)
-	score_label.add_theme_color_override("font_color", Color.YELLOW)
-	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(score_label)
+	high_score_texture = _load_texture(path)
+
+func _load_texture(path: String) -> Texture2D:
+	if FileAccess.file_exists(path):
+		var image = Image.load_from_file(ProjectSettings.globalize_path(path))
+		if image:
+			return ImageTexture.create_from_image(image)
 	
-	# Level reached
-	var level_label = Label.new()
-	level_label.text = "Level Reached: %d" % (GameState.current_map + 1)
-	level_label.add_theme_font_size_override("font_size", 24)
-	level_label.add_theme_color_override("font_color", Color.WHITE)
-	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(level_label)
+	# Fallback to res://
+	var fallback = "res://assets/vga/pics/087_HIGHSCORESPIC.png"
+	return load(fallback)
+
+func _create_ui() -> void:
+	# Dark teal background (matching original Wolf3D view border/vga background)
+	var bg = ColorRect.new()
+	bg.color = Color(0.0, 65.0/255.0, 65.0/255.0)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
 	
-	# Instruction
-	instruction_label = Label.new()
-	instruction_label.text = "Press any key to continue..."
-	instruction_label.add_theme_font_size_override("font_size", 18)
-	instruction_label.add_theme_color_override("font_color", Color.GRAY)
-	instruction_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(instruction_label)
-	
-	# Center the container
-	container.position = get_viewport().get_visible_rect().size / 2
-	container.position.x -= 200
-	container.position.y -= 100
-	
-	# Play game over sound
-	SoundManager.play_sound(SoundManager.SoundID.GAMEOVERSND)
+	# High Score Board Texture
+	if high_score_texture:
+		var board = TextureRect.new()
+		board.texture = high_score_texture
+		board.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		board.stretch_mode = TextureRect.STRETCH_SCALE
+		
+		# Center it
+		var board_w = high_score_texture.get_width() * scale_factor
+		var board_h = high_score_texture.get_height() * scale_factor
+		var window_size = get_viewport().get_visible_rect().size
+		
+		board.position = Vector2((window_size.x - board_w) / 2, (window_size.y - board_h) / 2)
+		board.size = Vector2(board_w, board_h)
+		add_child(board)
+		
+		# Overlay "GAME OVER" in large red text if desired, or just show the board
+		# In original it was often just the board or a quick flash.
+		# Let's add a "Current Score" entry to the board for the player
+		
+		var score_label = Label.new()
+		score_label.text = "YOUR SCORE: %d\nENTERING HIGH SCORES..." % GameState.score
+		_apply_font(score_label, 1)
+		score_label.add_theme_color_override("font_color", Color.YELLOW)
+		score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		score_label.position = Vector2(0, (window_size.y + board_h) / 2 + 10 * scale_factor)
+		score_label.size = Vector2(window_size.x, 30 * scale_factor)
+		add_child(score_label)
+	else:
+		# Fallback if texture missing
+		var fail_label = Label.new()
+		fail_label.text = "GAME OVER\nFINAL SCORE: %d" % GameState.score
+		_apply_font(fail_label, 2)
+		fail_label.add_theme_color_override("font_color", Color.RED)
+		fail_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fail_label.set_anchors_preset(Control.PRESET_CENTER)
+		add_child(fail_label)
+
+func _apply_font(label: Label, font_id: int) -> void:
+	var font = FontManager.font1 if font_id == 1 else FontManager.font2
+	if font:
+		label.add_theme_font_override("font", font)
+		var native_size = 10 if font_id == 1 else 13
+		label.add_theme_font_size_override("font_size", native_size)
+		label.scale = Vector2(scale_factor, scale_factor)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey or event is InputEventMouseButton:

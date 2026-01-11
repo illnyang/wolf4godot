@@ -106,7 +106,7 @@ func take_damage(amount: int, attacker: Node3D = null) -> void:
 	health_changed.emit(health)
 	
 	# Play pain sound and emit for screen flash
-	SoundManager.play_sound(SoundManager.SoundID.NAZIHITPLAYERSND)
+	SoundManager.play_sfx("TAKEDAMAGESND")
 	damage_taken.emit(actual_damage)
 	
 	# Track attacker for death sequence

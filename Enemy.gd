@@ -56,6 +56,16 @@ const REACTION_TIMES = {
 	EnemyType.BOSS: [0.02, 0.02],
 }
 
+# Point values for killing enemies (authentic Wolf3D values)
+const POINT_VALUES = {
+	EnemyType.GUARD: 100,
+	EnemyType.OFFICER: 400,
+	EnemyType.SS: 500,
+	EnemyType.DOG: 200,
+	EnemyType.MUTANT: 700,
+	EnemyType.BOSS: 5000,
+}
+
 # Sprite base indices for each enemy type (correct ranges from extracted sprites)
 # Guard: 48-96, Dog: 97-135, SS: 136-184, Mutant: 185-235, Officer: 236-285
 const SPRITE_BASES = {
@@ -829,7 +839,7 @@ func _first_sighting() -> void:
 		EnemyType.DOG:
 			SoundManager.play_sfx("DOGBARKSND")
 		EnemyType.SS:
-			SoundManager.play_sfx("SCABORGSND")
+			SoundManager.play_sfx("SCHUTZADSND")
 		_:
 			SoundManager.play_sfx("HALTSND")
 
@@ -857,6 +867,14 @@ func die() -> void:
 	
 	is_dead = true
 	state = State.DIE
+	
+	# Award points to player (authentic Wolf3D values)
+	var points = POINT_VALUES.get(enemy_type, 100)
+	GameState.give_points(points)
+	
+	# Increment kill count for level stats
+	if GameState.level_stats:
+		GameState.level_stats.kill_count += 1
 	
 	# Disable collision
 	if collision_shape:

@@ -276,6 +276,10 @@ func _ready() -> void:
 	print("MapLoader: Loading map from: ", map_path)
 	grid = MapGrid.new(map_path)
 	print("MapLoader: Map name: ", grid.map_name) 
+	
+	# Start level in GameState to reset stats
+	GameState.start_level()
+	
 	update_tile_material()
 	spawn_layer1()
 	spawn_layer2()
@@ -590,6 +594,10 @@ func spawn_layer1() -> void:
 					GameState.level_stats.secret_total += 1
 
 				root_node.add_child(pushwall_inst)
+				
+				# Increment secret total
+				if GameState.level_stats:
+					GameState.level_stats.secret_total += 1
 
 
 func _get_sprite_texture_folder() -> String:
@@ -649,6 +657,12 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 					pickup.sprite = sprite
 					
 					root_node.add_child(pickup)
+					
+					# Increment treasure total for score-giving items
+					if GameState.level_stats:
+						var p_type = L2Utils.get_pickup_type(id)
+						if p_type >= 8 and p_type <= 11: # CROSS, CHALICE, BIBLE, CROWN
+							GameState.level_stats.treasure_total += 1
 				else:
 					# Regular static decoration (no pickup)
 					var sprite: Sprite3D = Sprite3D.new()
@@ -737,6 +751,10 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 						push_warning("Enemy: missing sprite %d at (%d, %d)" % [sprite_idx, x, y])
 				
 				root_node.add_child(enemy_node)
+				
+				# Increment kill total
+				if GameState.level_stats:
+					GameState.level_stats.kill_total += 1
 
 
 #-----------------------------------------------------

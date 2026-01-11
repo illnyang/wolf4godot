@@ -14,7 +14,6 @@ player_scene = ExtResource("2_w4mwi")
 
 [node name="MapLoader" type="Node3D" parent="."]
 script = ExtResource("3_en2fo")
-json_path = "user://assets/maps/json/00_Tunnels 1.json"
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 script = ExtResource("3_x42b1")

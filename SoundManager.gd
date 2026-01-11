@@ -97,8 +97,8 @@ func _load_sounds() -> void:
 	if sounds_loaded:
 		return
 	
-	# Load sounds from user://assets/{game}/sounds/
-	var sounds_path = "user://assets/%s/sounds/" % GameState.selected_game
+	# Load sounds from user data folder
+	var sounds_path = GameState.get_sounds_path()
 	var dir = DirAccess.open(sounds_path)
 	
 	if dir == null:

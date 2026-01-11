@@ -140,12 +140,6 @@ func _load_pics() -> void:
 			pics[pic_name] = texture
 
 func _load_texture(path: String) -> Texture2D:
-	# Try load() first for res:// paths
-	if path.begins_with("res://"):
-		var tex = load(path)
-		if tex:
-			return tex
-	
 	# For user:// paths, load image directly
 	var image = Image.load_from_file(ProjectSettings.globalize_path(path))
 	if image:

@@ -14,8 +14,7 @@ func _ready() -> void:
 	load_fonts()
 
 func load_fonts() -> void:
-	var game_id = GameState.selected_game if GameState.selected_game != "" else "wolf3d"
-	var fonts_path = "user://assets/%s/fonts/" % game_id
+	var fonts_path = GameState.get_fonts_path()
 	
 	font1 = _load_font_from_extracted(fonts_path + "FONT1")
 	font2 = _load_font_from_extracted(fonts_path + "FONT2")

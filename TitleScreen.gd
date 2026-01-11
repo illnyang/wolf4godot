@@ -41,12 +41,7 @@ func _calculate_scale() -> void:
 
 
 func _get_pics_path() -> String:
-	# Try runtime extracted first, fall back to pre-extracted
-	var game_id = GameState.selected_game if GameState.selected_game != "" else "wolf3d"
-	var user_path = "user://assets/%s/pics/" % game_id
-	if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(user_path)):
-		return user_path
-	return "res://assets/vga/pics/"
+	return GameState.get_pics_path()
 
 
 func _load_pics() -> void:
@@ -65,20 +60,13 @@ func _load_pics() -> void:
 
 
 func _load_texture(path: String) -> Texture2D:
-	# Try load() first for res:// paths
-	if path.begins_with("res://"):
-		var tex = load(path)
-		if tex:
-			return tex
-	
 	# For user:// paths, load image directly
 	var image = Image.load_from_file(ProjectSettings.globalize_path(path))
 	if image:
 		return ImageTexture.create_from_image(image)
 	
-	# Fallback to res:// version
-	var fallback_path = "res://assets/vga/pics/" + path.get_file()
-	return load(fallback_path)
+	push_error("TitleScreen: Failed to load texture: " + path)
+	return null
 
 
 func _show_title() -> void:

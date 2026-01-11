@@ -78,7 +78,8 @@ const SPRITE_BASES = {
 }
 
 @export var enemy_type: EnemyType = EnemyType.GUARD
-@export var sprite_texture_folder: String = "user://assets/wolf3d/sprites/"
+@export var sprite_texture_folder: String:
+	get: return GameState.get_sprites_path()
 
 # Core state
 var state: State = State.STAND

@@ -20,6 +20,27 @@ var episode: int = 0
 var selected_map_path: String = "user://assets/wolf3d/maps/json/00_Tunnels 1.json"
 var selected_game: String = "wolf3d"
 
+func get_asset_path() -> String:
+	return "user://assets/" + selected_game + "/"
+
+func get_pics_path() -> String:
+	return get_asset_path() + "pics/"
+
+func get_walls_path() -> String:
+	return get_asset_path() + "walls/"
+
+func get_sprites_path() -> String:
+	return get_asset_path() + "sprites/"
+
+func get_sounds_path() -> String:
+	return get_asset_path() + "sounds/"
+
+func get_music_path() -> String:
+	return get_asset_path() + "music/"
+
+func get_fonts_path() -> String:
+	return get_asset_path() + "fonts/"
+
 # Difficulty system
 enum Difficulty { BABY, EASY, NORMAL, HARD }
 var difficulty: Difficulty = Difficulty.NORMAL

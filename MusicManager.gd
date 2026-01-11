@@ -44,7 +44,7 @@ func _load_music(track_name: String) -> AudioStream:
 		return music_cache[track_name]
 	
 	# Try loading from extracted music folder
-	var music_path = "user://assets/%s/music/%s.wav" % [GameState.selected_game, track_name]
+	var music_path = GameState.get_music_path() + "%s.wav" % track_name
 	
 	var stream = _load_wav_file(music_path)
 	if stream:

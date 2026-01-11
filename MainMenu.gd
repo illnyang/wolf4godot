@@ -40,6 +40,8 @@ var selected_episode: int = 0
 
 # Scale factor for 320x200 -> current resolution
 var scale_factor: float = 1.0
+var center_offset_x: float = 0.0  # Horizontal offset to center content
+var center_offset_y: float = 0.0  # Vertical offset to center content
 
 # Store view size before entering Change View screen
 var pre_view_size: int = 15
@@ -114,6 +116,12 @@ func _calculate_scale() -> void:
 	var scale_x = window_size.x / ORIG_WIDTH
 	var scale_y = window_size.y / ORIG_HEIGHT
 	scale_factor = min(scale_x, scale_y)
+	
+	# Calculate center offset to center content when window aspect ratio differs
+	var scaled_width = ORIG_WIDTH * scale_factor
+	var scaled_height = ORIG_HEIGHT * scale_factor
+	center_offset_x = (window_size.x - scaled_width) / 2.0
+	center_offset_y = (window_size.y - scaled_height) / 2.0
 
 
 func _get_pics_path() -> String:
@@ -257,8 +265,8 @@ func _show_title() -> void:
 	_apply_font(press_label, 1)
 	press_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	press_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	press_label.position = Vector2(0, 180 * scale_factor)
-	press_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	press_label.position = Vector2(center_offset_x, center_offset_y + 180 * scale_factor)
+	press_label.size = Vector2(320 * scale_factor, 20 * scale_factor)
 	add_child(press_label)
 
 
@@ -276,7 +284,7 @@ func _show_main_menu() -> void:
 		header.texture = pics["C_OPTIONSPIC"]
 		header.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		header.stretch_mode = TextureRect.STRETCH_SCALE
-		header.position = Vector2(84 * scale_factor, 0)
+		header.position = Vector2(center_offset_x + 84 * scale_factor, center_offset_y + 0)
 		header.size = Vector2(pics["C_OPTIONSPIC"].get_width() * scale_factor, 
 							   pics["C_OPTIONSPIC"].get_height() * scale_factor)
 		add_child(header)
@@ -297,7 +305,7 @@ func _show_main_menu() -> void:
 		else:
 			label.add_theme_color_override("font_color", COLOR_TEXT)
 		
-		label.position = Vector2((MENU_X + 24) * scale_factor, (menu_start_y + i * 13) * scale_factor)
+		label.position = Vector2(center_offset_x + (MENU_X + 24) * scale_factor, center_offset_y + (menu_start_y + i * 13) * scale_factor)
 		add_child(label)
 	
 	# Draw footer (C_MOUSELBACKPIC)
@@ -307,7 +315,7 @@ func _show_main_menu() -> void:
 		footer.texture = pics["C_MOUSELBACKPIC"]
 		footer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		footer.stretch_mode = TextureRect.STRETCH_SCALE
-		footer.position = Vector2(112 * scale_factor, 184 * scale_factor)
+		footer.position = Vector2(center_offset_x + 112 * scale_factor, center_offset_y + 184 * scale_factor)
 		footer.size = Vector2(pics["C_MOUSELBACKPIC"].get_width() * scale_factor,
 							   pics["C_MOUSELBACKPIC"].get_height() * scale_factor)
 		add_child(footer)
@@ -320,57 +328,133 @@ func _show_episode_select() -> void:
 	episode_index = 0
 	
 	_clear_menu_items()
-	_draw_menu_background()
 	
-	# Episode selection header
+	# Custom background for episode screen (no black stripes)
+	var bg = ColorRect.new()
+	bg.name = "EpisodeBG"
+	bg.color = COLOR_BACKGROUND
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	
+	# Inner darker panel with 3D beveled frame (original Wolf3D style)
+	# "Sunken" look: TOP/LEFT = dark shadow, BOTTOM/RIGHT = light highlight
+	var panel_x = 20
+	var panel_y = 35
+	var panel_w = 280
+	var panel_h = 145
+	
+	# First draw the highlight (bright) behind the panel to show on right/bottom edges
+	var highlight_right = ColorRect.new()
+	highlight_right.name = "PanelHighlightRight"
+	highlight_right.color = Color(170.0/255.0, 0.0, 0.0) # Brighter red for highlight
+	highlight_right.position = Vector2(center_offset_x + (panel_x + panel_w - 2) * scale_factor, center_offset_y + panel_y * scale_factor)
+	highlight_right.size = Vector2(2 * scale_factor, panel_h * scale_factor)
+	add_child(highlight_right)
+	
+	var highlight_bottom = ColorRect.new()
+	highlight_bottom.name = "PanelHighlightBottom"
+	highlight_bottom.color = Color(170.0/255.0, 0.0, 0.0)
+	highlight_bottom.position = Vector2(center_offset_x + panel_x * scale_factor, center_offset_y + (panel_y + panel_h - 2) * scale_factor)
+	highlight_bottom.size = Vector2(panel_w * scale_factor, 2 * scale_factor)
+	add_child(highlight_bottom)
+	
+	# Inner panel (darker red)
+	var panel = ColorRect.new()
+	panel.name = "EpisodePanel"
+	panel.color = Color(89.0/255.0, 0.0, 0.0) # Dark red inner panel
+	panel.position = Vector2(center_offset_x + panel_x * scale_factor, center_offset_y + panel_y * scale_factor)
+	panel.size = Vector2(panel_w * scale_factor, panel_h * scale_factor)
+	add_child(panel)
+	
+	# Dark shadow on top and left edges (creates sunken look)
+	var shadow_top = ColorRect.new()
+	shadow_top.name = "PanelShadowTop"
+	shadow_top.color = Color(60.0/255.0, 0.0, 0.0) # Very dark red for shadow
+	shadow_top.position = Vector2(center_offset_x + panel_x * scale_factor, center_offset_y + panel_y * scale_factor)
+	shadow_top.size = Vector2(panel_w * scale_factor, 2 * scale_factor)
+	add_child(shadow_top)
+	
+	var shadow_left = ColorRect.new()
+	shadow_left.name = "PanelShadowLeft"
+	shadow_left.color = Color(60.0/255.0, 0.0, 0.0)
+	shadow_left.position = Vector2(center_offset_x + panel_x * scale_factor, center_offset_y + panel_y * scale_factor)
+	shadow_left.size = Vector2(2 * scale_factor, panel_h * scale_factor)
+	add_child(shadow_left)
+	
+	# Episode selection header - YELLOW 
+	# When using label.scale, position must be in UNSCALED coords (320x200)
 	var header = Label.new()
 	header.name = "EpisodeHeader"
 	header.text = "Which episode to play?"
-	_apply_font(header, 2)
-	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	if FontManager.font2:
+		header.add_theme_font_override("font", FontManager.font2)
+	header.add_theme_font_size_override("font_size", 13) # Native size required
+	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT) # Yellow
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.position = Vector2(0, 30 * scale_factor)
-	header.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	# Position with center offset
+	header.position = Vector2(center_offset_x, center_offset_y + 18 * scale_factor)
+	header.size = Vector2(320 * scale_factor, 20 * scale_factor)
+	# Don't use label.scale here, use scaled position/size directly
 	add_child(header)
 	
-	# Draw episode options - original shows Episode X and subtitle on two lines
+	# Episode spacing (original has more vertical space)
+	var ep_start_y = 42
+	var ep_spacing = 24 # More space between episodes
+	
+	# Draw episode options
 	for i in range(episode_options.size()):
 		var ep = episode_options[i]
 		var lines = ep.text.split("\n")
 		var episode_title = lines[0] if lines.size() > 0 else "Episode"
 		var episode_subtitle = lines[1] if lines.size() > 1 else ""
 		
-		# Episode pic
+		var ep_y = ep_start_y + i * ep_spacing
+		
+		# Episode pic - positioned inside panel
 		if pics.has(ep.pic):
 			var pic_rect = TextureRect.new()
 			pic_rect.name = "EpisodePic_%d" % i
 			pic_rect.texture = pics[ep.pic]
 			pic_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			pic_rect.stretch_mode = TextureRect.STRETCH_SCALE
-			# Position pics on left side, spaced for 2 lines per episode
-			pic_rect.position = Vector2(30 * scale_factor, (48 + i * 22) * scale_factor)
+			pic_rect.position = Vector2(center_offset_x + 25 * scale_factor, center_offset_y + ep_y * scale_factor)
 			pic_rect.size = Vector2(pics[ep.pic].get_width() * scale_factor,
 									 pics[ep.pic].get_height() * scale_factor)
 			add_child(pic_rect)
 		
-		# Episode title (e.g., "Episode 1") - SCALED position to align with pics
+		# Text colors: selected = WHITE (bright), unselected = grey
+		var text_color = Color.WHITE if i == episode_index else Color(0.6, 0.6, 0.6)
+		
+		# Episode title (e.g., "Episode 1")
 		var title_label = Label.new()
 		title_label.name = "EpisodeTitle_%d" % i
 		title_label.text = episode_title
 		_apply_font(title_label, 2)
-		title_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT)
-		title_label.position = Vector2(100 * scale_factor, (48 + i * 22) * scale_factor)
+		title_label.add_theme_color_override("font_color", text_color)
+		title_label.position = Vector2(center_offset_x + 95 * scale_factor, center_offset_y + ep_y * scale_factor)
 		add_child(title_label)
 		
-		# Episode subtitle (e.g., "Escape from Wolfenstein")
+		# Episode subtitle
 		if episode_subtitle != "":
 			var subtitle_label = Label.new()
 			subtitle_label.name = "EpisodeSubtitle_%d" % i
 			subtitle_label.text = episode_subtitle
 			_apply_font(subtitle_label, 2)
-			subtitle_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT)
-			subtitle_label.position = Vector2(100 * scale_factor, (48 + i * 22 + 13) * scale_factor)
+			subtitle_label.add_theme_color_override("font_color", text_color)
+			subtitle_label.position = Vector2(center_offset_x + 95 * scale_factor, center_offset_y + (ep_y + 11) * scale_factor)
 			add_child(subtitle_label)
+	
+	# Footer graphic (C_MOUSELBACKPIC) at bottom
+	if pics.has("C_MOUSELBACKPIC"):
+		var footer = TextureRect.new()
+		footer.name = "EpisodeFooter"
+		footer.texture = pics["C_MOUSELBACKPIC"]
+		footer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		footer.stretch_mode = TextureRect.STRETCH_SCALE
+		footer.position = Vector2(center_offset_x + 112 * scale_factor, center_offset_y + 184 * scale_factor)
+		footer.size = Vector2(pics["C_MOUSELBACKPIC"].get_width() * scale_factor,
+							   pics["C_MOUSELBACKPIC"].get_height() * scale_factor)
+		add_child(footer)
 	
 	_update_cursor()
 
@@ -505,20 +589,20 @@ func _draw_menu_background() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	
-	# Draw stripes at top
+	# Draw stripes at top (centered)
 	for i in range(0, 10, 2):
 		var stripe = ColorRect.new()
 		stripe.name = "Stripe_%d" % i
 		stripe.color = COLOR_STRIPE
-		stripe.position = Vector2(0, (10 + i * 2) * scale_factor)
-		stripe.size = Vector2(get_viewport().get_visible_rect().size.x, 2 * scale_factor)
+		stripe.position = Vector2(center_offset_x, center_offset_y + (10 + i * 2) * scale_factor)
+		stripe.size = Vector2(320 * scale_factor, 2 * scale_factor)
 		add_child(stripe)
 	
 	# Menu window
 	var window = ColorRect.new()
 	window.name = "MenuWindow"
 	window.color = Color(89/255.0, 0.0, 0.0, 0.95)  # Very dark red/black for window background
-	window.position = Vector2((MENU_X - 8) * scale_factor, (MENU_Y - 3) * scale_factor)
+	window.position = Vector2(center_offset_x + (MENU_X - 8) * scale_factor, center_offset_y + (MENU_Y - 3) * scale_factor)
 	window.size = Vector2(MENU_W * scale_factor, MENU_H * scale_factor)
 	add_child(window)
 	
@@ -526,7 +610,7 @@ func _draw_menu_background() -> void:
 	var border = ColorRect.new()
 	border.name = "WindowBorder"
 	border.color = COLOR_BORDER
-	border.position = Vector2((MENU_X - 10) * scale_factor, (MENU_Y - 5) * scale_factor)
+	border.position = Vector2(center_offset_x + (MENU_X - 10) * scale_factor, center_offset_y + (MENU_Y - 5) * scale_factor)
 	border.size = Vector2((MENU_W + 4) * scale_factor, (MENU_H + 4) * scale_factor)
 	add_child(border)
 	move_child(border, get_child_count() - 2)  # Behind window
@@ -558,17 +642,17 @@ func _update_cursor() -> void:
 	
 	match current_state:
 		MenuState.MAIN:
-			target_x = (MENU_X) * scale_factor
-			target_y = (MENU_Y + 10 + main_menu_index * 13) * scale_factor
+			target_x = center_offset_x + (MENU_X) * scale_factor
+			target_y = center_offset_y + (MENU_Y + 10 + main_menu_index * 13) * scale_factor
 		MenuState.EPISODE_SELECT:
-			target_x = 15 * scale_factor
-			target_y = (48 + episode_index * 22) * scale_factor
+			target_x = center_offset_x + 10 * scale_factor # Further left to not overlap pics
+			target_y = center_offset_y + (42 + episode_index * 24) * scale_factor # Match new spacing
 		MenuState.DIFFICULTY_SELECT:
-			target_x = 35 * scale_factor
-			target_y = (88 + difficulty_index * 26) * scale_factor
+			target_x = center_offset_x + 35 * scale_factor
+			target_y = center_offset_y + (88 + difficulty_index * 26) * scale_factor
 		MenuState.MAP_SELECT:
-			target_x = 65 * scale_factor
-			target_y = (50 + map_index * 14) * scale_factor
+			target_x = center_offset_x + 65 * scale_factor
+			target_y = center_offset_y + (50 + map_index * 14) * scale_factor
 	
 	cursor_rect.position = Vector2(target_x, target_y)
 	
@@ -591,7 +675,8 @@ func _update_menu_highlights() -> void:
 		
 		MenuState.EPISODE_SELECT:
 			for i in range(episode_options.size()):
-				var color = COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT
+				# Episode menu uses WHITE for selected, GREY for unselected
+				var color = Color.WHITE if i == episode_index else Color(0.6, 0.6, 0.6)
 				var title_label = get_node_or_null("EpisodeTitle_%d" % i) as Label
 				var subtitle_label = get_node_or_null("EpisodeSubtitle_%d" % i) as Label
 				if title_label:
@@ -781,7 +866,7 @@ func _show_view_size_screen() -> void:
 		label.add_theme_font_size_override("font_size", 10) # NATIVE size
 		label.add_theme_color_override("font_color", COLOR_TEXT)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.position = Vector2(0, (160 + i * 12) * scale_factor)
+		label.position = Vector2(center_offset_x, center_offset_y + (160 + i * 12) * scale_factor)
 		label.size = Vector2(320, 15)
 		label.scale = Vector2(scale_factor, scale_factor)
 		add_child(label)
@@ -807,7 +892,7 @@ func _update_view_size_preview() -> void:
 	var viewport_x = (ORIG_WIDTH - view_width) / 2.0
 	var viewport_y = (game_area_height - view_height) / 2.0
 	
-	preview.position = Vector2(viewport_x * scale_factor, viewport_y * scale_factor)
+	preview.position = Vector2(center_offset_x + viewport_x * scale_factor, center_offset_y + viewport_y * scale_factor)
 	preview.size = Vector2(view_width * scale_factor, view_height * scale_factor)
 
 

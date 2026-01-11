@@ -250,6 +250,12 @@ func give_extra_life() -> void:
 		# Play 1-up sound
 
 
+# ===== SECRETS SYSTEM =====
+func increment_secrets_found() -> void:
+	if level_stats:
+		level_stats.secret_count += 1
+
+
 # ===== PICKUP FUNCTIONS =====
 func pickup_health_potion() -> bool:
 	if health >= 100:
@@ -375,7 +381,8 @@ func save_game_state() -> void:
 		"enemies": [],
 		"corpses": [],
 		"pickups": [],
-		"doors": []
+		"doors": [],
+		"pushwalls": []
 	}
 	
 	# Save player position and rotation
@@ -435,6 +442,12 @@ func save_game_state() -> void:
 				"auto_close_timer": door.auto_close_timer
 			}
 			saved_game_state["doors"].append(door_data)
+	
+	# Save pushwalls state
+	var pushwalls = _get_tree_or_null().get_nodes_in_group("pushwalls") if _get_tree_or_null() else []
+	for pushwall in pushwalls:
+		if pushwall and is_instance_valid(pushwall) and pushwall.has_method("get_push_state"):
+			saved_game_state["pushwalls"].append(pushwall.get_push_state())
 	
 	print("[GameState] Game state saved: Player at ", saved_game_state["player_position"])
 

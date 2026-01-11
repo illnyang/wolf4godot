@@ -156,6 +156,14 @@ func _try_interact() -> void:
 			_trigger_level_complete()
 			return
 	
+	# Check for pushwall first
+	var pushwall_node = _find_pushwall_at_tile(tx, tz)
+	if pushwall_node:
+		# Activate pushwall in the direction player is facing
+		pushwall_node.push(forward)
+		return
+	
+	# Then check for doors
 	var door_node = _find_door_at_tile(tx, tz)
 	if door_node:
 		door_node.interact()
@@ -194,6 +202,18 @@ func _find_door_at_tile(tx: int, tz: int) -> Node3D:
 			return door
 	return null
 
+func _find_pushwall_at_tile(tx: int, tz: int) -> Node3D:
+	var all_pushwalls = get_tree().get_nodes_in_group("pushwalls")
+	for pushwall in all_pushwalls:
+		# Check actual current position, not original grid position
+		var pw_pos = pushwall.position
+		var pw_x = int(floor(pw_pos.x))
+		var pw_z = int(floor(pw_pos.z))
+		
+		if pw_x == tx and pw_z == tz:
+			return pushwall
+	return null
+
 func _attempt_move(offset_3d: Vector3) -> void:
 	if grid == null:
 		position += offset_3d
@@ -212,9 +232,15 @@ func _attempt_move(offset_3d: Vector3) -> void:
 			if tx < 0 or tx >= grid.width() or tz < 0 or tz >= grid.height(): continue
 			
 			var tile_id = grid.tile_at(tx, tz)
+			var thing_id = grid.thing_at(tx, tz)
 			var is_solid = false
 			
-			if map_loader.L1Utils.is_wall(tile_id):
+			# Check if this is a pushwall tile - if so, check the pushwall object instead of tile
+			if map_loader.L2Utils.is_push_wall(thing_id):
+				var pushwall = _find_pushwall_at_tile(tx, tz)
+				if pushwall and pushwall.has_method("is_blocking"):
+					is_solid = pushwall.is_blocking()
+			elif map_loader.L1Utils.is_wall(tile_id):
 				is_solid = true
 			elif map_loader.L1Utils.is_door(tile_id) or map_loader.L1Utils.is_elevator_door(tile_id):
 				var door = _find_door_at_tile(tx, tz)

@@ -435,6 +435,32 @@ func _restore_saved_state() -> void:
 		
 		print("MapLoader: Restored ", saved_doors.size(), " doors state")
 	
+	# Restore pushwalls state
+	if state.has("pushwalls"):
+		var saved_pushwalls = state["pushwalls"]
+		var pushwalls = get_tree().get_nodes_in_group("pushwalls")
+		
+		for saved_pw in saved_pushwalls:
+			var grid_x = saved_pw.get("grid_x", -1)
+			var grid_y = saved_pw.get("grid_y", -1)
+			
+			if grid_x < 0 or grid_y < 0:
+				continue
+			
+			# Find matching pushwall by grid position
+			for pw in pushwalls:
+				if pw and is_instance_valid(pw):
+					var pw_x = pw.grid_x if "grid_x" in pw else -1
+					var pw_y = pw.grid_y if "grid_y" in pw else -1
+					
+					if pw_x == grid_x and pw_y == grid_y:
+						# Restore pushwall state
+						if pw.has_method("restore_push_state"):
+							pw.restore_push_state(saved_pw)
+						break
+		
+		print("MapLoader: Restored ", saved_pushwalls.size(), " pushwalls state")
+	
 	print("MapLoader: Game state restored successfully")
 	
 	# Clear saved state so it's not used again on death/restart
@@ -547,7 +573,8 @@ func spawn_layer1() -> void:
 					pushwall_meshes[tile_id] = pushwall_mesh
 
 				var pushwall_inst := MeshInstance3D.new()
-				pushwall_inst.name = "PushWall"
+				pushwall_inst.set_script(load("res://PushWall.gd"))
+				pushwall_inst.name = "PushWall_%d_%d" % [x, y]
 				pushwall_inst.mesh = pushwall_mesh
 				pushwall_inst.material_override = tile_material
 
@@ -556,6 +583,15 @@ func spawn_layer1() -> void:
 					pushwall_inst.material_overlay = pushwall_editor_overlay_mat
 
 				pushwall_inst.position = Vector3(x + 0.5, 0, y + 0.5)
+				
+				# Store grid reference and position
+				pushwall_inst.set("grid", grid)
+				pushwall_inst.set("grid_x", x)
+				pushwall_inst.set("grid_y", y)
+				
+				# Increment secret total
+				if GameState.level_stats:
+					GameState.level_stats.secret_total += 1
 
 				root_node.add_child(pushwall_inst)
 				

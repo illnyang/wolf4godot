@@ -10,9 +10,9 @@ const MENU_H = 136
 const COLOR_BACKGROUND = Color(138.0/255.0, 0.0, 0.0)
 const COLOR_BORDER = Color(110.0/255.0, 0.0, 0.0)
 const COLOR_STRIPE = Color(0.0, 0.0, 0.0)
-const COLOR_TEXT = Color(0.9, 0.9, 0.9)
-const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)
-const COLOR_DEACTIVE = Color(0.5, 0.5, 0.5)
+const COLOR_TEXT = Color(155.0/255.0, 155.0/255.0, 155.0/255.0)
+const COLOR_HIGHLIGHT = Color(1.0, 1.0, 1.0)
+const COLOR_DEACTIVE = Color(110.0/255.0, 0.0, 0.0)
 const COLOR_VIEW_BORDER = Color(0.0, 65.0/255.0, 65.0/255.0)
 
 enum MenuState { MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE, SAVE_GAME, LOAD_GAME }
@@ -254,19 +254,19 @@ func _show_main_menu() -> void:
 		label.position = Vector2(center_offset_x + (MENU_X + 24) * scale_factor, center_offset_y + (menu_start_y + i * 12) * scale_factor)
 		add_child(label)
 	
-	# Draw footer (C_MOUSELBACKPIC)
 	if pics.has("C_MOUSELBACKPIC"):
 		var footer = TextureRect.new()
 		footer.name = "MenuFooter"
 		footer.texture = pics["C_MOUSELBACKPIC"]
 		footer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		footer.stretch_mode = TextureRect.STRETCH_SCALE
-		footer.position = Vector2(center_offset_x + 112 * scale_factor, center_offset_y + 184 * scale_factor)
-		footer.size = Vector2(pics["C_MOUSELBACKPIC"].get_width() * scale_factor,
-							   pics["C_MOUSELBACKPIC"].get_height() * scale_factor)
+		footer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var footer_width = 100.0
+		footer.position = Vector2(
+		center_offset_x + (160 - (footer_width / 2.0)) * scale_factor,
+		center_offset_y + 190 * scale_factor
+	)
+		footer.size = Vector2(footer_width * scale_factor, 10 * scale_factor)
 		add_child(footer)
-	
-	_update_cursor()
 
 func _show_episode_select() -> void:
 	current_state = MenuState.EPISODE_SELECT
@@ -332,10 +332,12 @@ func _show_episode_select() -> void:
 	if FontManager.font2:
 		header.add_theme_font_override("font", FontManager.font2)
 	header.add_theme_font_size_override("font_size", 13)
-	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	header.add_theme_color_override("font_color", Color(1.0, 1.0, 0.0)) 
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.position = Vector2(center_offset_x, center_offset_y + 18 * scale_factor)
-	header.size = Vector2(320 * scale_factor, 20 * scale_factor)
+	var header_scale = scale_factor * 1.2
+	header.scale = Vector2(header_scale, header_scale)
+	header.position = Vector2(center_offset_x, center_offset_y + 14 * scale_factor)
+	header.size = Vector2((320 * scale_factor) / header_scale, 20 * scale_factor)
 	add_child(header)
 	
 	var ep_start_y = 38
@@ -395,23 +397,25 @@ func _show_difficulty_select() -> void:
 	current_state = MenuState.DIFFICULTY_SELECT
 	_clear_menu_items()
 	_draw_menu_background()
-	
+	var stripe = get_node_or_null("MainStripe")
+	if stripe:
+		stripe.queue_free()
 	var header = Label.new()
 	header.name = "DifficultyHeader"
 	header.text = "How tough are you?"
 	_apply_font(header, 2)
-	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	header.add_theme_color_override("font_color", Color(1.0, 1.0, 0.0))
+	var header_scale = scale_factor * 1.2
+	header.scale = Vector2(header_scale, header_scale)
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.position = Vector2(0, 40 * scale_factor)
-	header.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	header.position = Vector2(center_offset_x, center_offset_y + 35 * scale_factor)
+	header.size = Vector2((320 * scale_factor) / header_scale, 20 * scale_factor)
 	add_child(header)
-	
 	var face_rect = TextureRect.new()
 	face_rect.name = "DynamicDifficultyFace"
 	face_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	face_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	add_child(face_rect)
-	
 	var text_base_x = 100 
 	for i in range(difficulty_options.size()):
 		var diff = difficulty_options[i]
@@ -503,19 +507,19 @@ func _extract_map_name(filename: String) -> String:
 func _draw_menu_background() -> void:
 	background.texture = null
 	background.visible = false
+	
 	var bg = ColorRect.new()
 	bg.name = "MenuBG"
 	bg.color = COLOR_BACKGROUND
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	
-	for i in range(0, 10, 2):
-		var stripe = ColorRect.new()
-		stripe.name = "Stripe_%d" % i
-		stripe.color = COLOR_STRIPE
-		stripe.position = Vector2(center_offset_x, center_offset_y + (10 + i * 2) * scale_factor)
-		stripe.size = Vector2(320 * scale_factor, 2 * scale_factor)
-		add_child(stripe)
+	var stripe = ColorRect.new()
+	stripe.name = "MainStripe"
+	stripe.color = COLOR_STRIPE
+	stripe.position = Vector2(center_offset_x, center_offset_y + 10 * scale_factor)
+	stripe.size = Vector2(320 * scale_factor, 24 * scale_factor)
+	add_child(stripe)
 	
 	var window = ColorRect.new()
 	window.name = "MenuWindow"
@@ -530,6 +534,7 @@ func _draw_menu_background() -> void:
 	border.position = Vector2(center_offset_x + (MENU_X - 10) * scale_factor, center_offset_y + (MENU_Y - 5) * scale_factor)
 	border.size = Vector2((MENU_W + 4) * scale_factor, (MENU_H + 4) * scale_factor)
 	add_child(border)
+	
 	move_child(border, get_child_count() - 2)
 
 func _clear_menu_items() -> void:

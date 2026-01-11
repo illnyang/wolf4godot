@@ -24,6 +24,11 @@ var selected_game: String = "wolf3d"
 enum Difficulty { BABY, EASY, NORMAL, HARD }
 var difficulty: Difficulty = Difficulty.NORMAL
 
+var in_game: bool = false
+var menu_from_game: bool = false
+
+var saved_game_state: Dictionary = {}
+
 # View size system (original Wolf3D behavior)
 # viewsize ranges from 4 to 21 (in 16-pixel units)
 # viewwidth = viewsize * 16, viewheight = viewwidth * 0.5
@@ -344,3 +349,108 @@ func _process(_delta: float) -> void:
 		increase_view_size()
 	elif Input.is_action_just_pressed("view_decrease"):
 		decrease_view_size()
+
+
+# ===== SAVE/LOAD GAME STATE =====
+func save_game_state() -> void:
+	# Save player state
+	saved_game_state = {
+		"health": health,
+		"lives": lives,
+		"ammo": ammo,
+		"score": score,
+		"keys": keys,
+		"weapon": weapon,
+		"best_weapon": best_weapon,
+		"chosen_weapon": chosen_weapon,
+		"current_map": current_map,
+		"episode": episode,
+		"selected_map_path": selected_map_path,
+		"selected_game": selected_game,
+		"difficulty": difficulty,
+		"view_size": view_size,
+		"next_extra_life": next_extra_life,
+		"player_position": Vector3.ZERO,
+		"player_rotation": 0.0,
+		"enemies": [],
+		"corpses": [],
+		"pickups": [],
+		"doors": []
+	}
+	
+	# Save player position and rotation
+	var player = _get_player()
+	if player:
+		var pos = player.global_position
+		saved_game_state["player_position"] = {"x": pos.x, "y": pos.y, "z": pos.z}
+		saved_game_state["player_rotation"] = player.rotation.y
+	
+	# Save enemies state
+	var enemies = _get_tree_or_null().get_nodes_in_group("enemies") if _get_tree_or_null() else []
+	for enemy in enemies:
+		if enemy and is_instance_valid(enemy):
+			if enemy.is_dead:
+				# Save corpses separately
+				var pos = enemy.global_position
+				saved_game_state["corpses"].append({
+					"position": {"x": pos.x, "y": pos.y, "z": pos.z},
+					"rotation": enemy.rotation.y,
+					"enemy_type": enemy.enemy_type,
+					"state": enemy.state
+				})
+			else:
+				# Save living enemies
+				var pos = enemy.global_position
+				saved_game_state["enemies"].append({
+					"position": {"x": pos.x, "y": pos.y, "z": pos.z},
+					"rotation": enemy.rotation.y,
+					"health": enemy.health,
+					"state": enemy.state,
+					"direction": enemy.direction,
+					"enemy_type": enemy.enemy_type,
+					"in_attack_mode": enemy.in_attack_mode,
+					"tilex": enemy.tilex,
+					"tiley": enemy.tiley
+				})
+	
+	# Save pickups state (track which ones are collected)
+	var pickups = _get_tree_or_null().get_nodes_in_group("pickups") if _get_tree_or_null() else []
+	for pickup in pickups:
+		if pickup and is_instance_valid(pickup):
+			var pos = pickup.global_position
+			saved_game_state["pickups"].append({
+				"position": {"x": pos.x, "y": pos.y, "z": pos.z},
+				"type": pickup.get_meta("pickup_type") if pickup.has_meta("pickup_type") else 0
+			})
+	
+	# Save doors state
+	var doors = _get_tree_or_null().get_nodes_in_group("doors") if _get_tree_or_null() else []
+	for door in doors:
+		if door and is_instance_valid(door):
+			var door_data = {
+				"grid_x": door.get_meta("grid_x") if door.has_meta("grid_x") else -1,
+				"grid_y": door.get_meta("grid_y") if door.has_meta("grid_y") else -1,
+				"current_state": door.current_state,
+				"open_ratio": door.open_ratio,
+				"auto_close_timer": door.auto_close_timer
+			}
+			saved_game_state["doors"].append(door_data)
+	
+	print("[GameState] Game state saved: Player at ", saved_game_state["player_position"])
+
+func has_saved_state() -> bool:
+	return not saved_game_state.is_empty()
+
+func clear_saved_state() -> void:
+	saved_game_state.clear()
+
+func _get_player() -> Node:
+	var tree = _get_tree_or_null()
+	if tree:
+		return tree.get_first_node_in_group("player")
+	return null
+
+func _get_tree_or_null():
+	if is_inside_tree():
+		return get_tree()
+	return null

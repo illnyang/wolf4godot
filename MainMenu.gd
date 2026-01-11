@@ -23,8 +23,8 @@ const COLOR_DEACTIVE = Color(0.5, 0.5, 0.5)
 const COLOR_VIEW_BORDER = Color(0.0, 65.0/255.0, 65.0/255.0)  # Authentic teal/cyan
 
 # Menu states
-enum MenuState { TITLE, MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE }
-var current_state: MenuState = MenuState.TITLE
+enum MenuState { MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE, SAVE_GAME, LOAD_GAME }
+var current_state: MenuState = MenuState.MAIN
 
 # Selection indices
 var main_menu_index: int = 0
@@ -32,6 +32,13 @@ var episode_index: int = 0
 var difficulty_index: int = 1  # Default to "Bring 'em on!"
 var game_index: int = 0
 var map_index: int = 0
+var save_slot_index: int = 0
+
+# Save game system
+const MAX_SAVE_SLOTS = 8
+var save_slots: Array[Dictionary] = []
+var save_input_text: String = ""
+var save_input_active: bool = false
 
 # Available games and maps
 var available_games: Array[Dictionary] = []
@@ -45,6 +52,9 @@ var center_offset_y: float = 0.0  # Vertical offset to center content
 
 # Store view size before entering Change View screen
 var pre_view_size: int = 15
+
+# Track if we entered menu from game (before flag is reset)
+var entered_from_game: bool = false
 
 # Loaded textures
 var pics: Dictionary = {}
@@ -61,7 +71,7 @@ var main_menu_options = [
 	{"text": "New Game", "active": true},
 	{"text": "Sound", "active": true},
 	{"text": "Control", "active": true},
-	{"text": "Load Game", "active": true},
+	{"text": "Load Game", "active": false},  # Disabled until saves exist
 	{"text": "Save Game", "active": false},  # Disabled until in-game
 	{"text": "Change View", "active": true},
 	{"text": "Read This!", "active": true},
@@ -104,10 +114,25 @@ func _ready() -> void:
 	_load_pics()
 	_detect_games()
 	_create_ui()
-	_show_title()
 	
-	# Play title music
-	MusicManager.play_title_music()
+	# Check if coming from game
+	if GameState.menu_from_game:
+		# We're coming from in-game, enable Save Game option and add Resume option
+		entered_from_game = true
+		
+		# Add "Resume Game" as first option if not already there
+		if main_menu_options[0].text != "Resume Game":
+			main_menu_options.insert(0, {"text": "Resume Game", "active": true})
+		
+		# Enable Save Game (now at index 5 because of Resume Game insertion)
+		main_menu_options[5].active = true  # Save Game
+		
+		GameState.menu_from_game = false  # Reset flag
+	
+	_show_main_menu()
+	
+	# Play title music - already played in TitleScreen
+	# MusicManager.play_title_music()
 
 
 func _calculate_scale() -> void:
@@ -245,34 +270,25 @@ func _create_ui() -> void:
 	add_child(cursor_rect)
 
 
-func _show_title() -> void:
-	current_state = MenuState.TITLE
-	
-	# Clear children except background and cursor
-	_clear_menu_items()
-	
-	# Show title pic
-	if pics.has("TITLEPIC"):
-		background.texture = pics["TITLEPIC"]
-		background.visible = true
-	
-	cursor_rect.visible = false
-	
-	# Add "Press any key" text
-	var press_label = Label.new()
-	press_label.name = "PressLabel"
-	press_label.text = "PRESS A KEY"
-	_apply_font(press_label, 1)
-	press_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
-	press_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	press_label.position = Vector2(center_offset_x, center_offset_y + 180 * scale_factor)
-	press_label.size = Vector2(320 * scale_factor, 20 * scale_factor)
-	add_child(press_label)
-
 
 func _show_main_menu() -> void:
 	current_state = MenuState.MAIN
 	main_menu_index = 0
+	
+	# Check if there are any saved games
+	var has_saves = _check_for_saved_games()
+	print("[MainMenu] has_saves = ", has_saves, ", setting Load Game active to: ", has_saves)
+	
+	# Find Load Game option (account for Resume Game being inserted)
+	var load_game_index = -1
+	for i in range(main_menu_options.size()):
+		if main_menu_options[i].text == "Load Game":
+			load_game_index = i
+			break
+	
+	if load_game_index >= 0:
+		main_menu_options[load_game_index].active = has_saves
+		print("[MainMenu] Set Load Game (index ", load_game_index, ") active = ", has_saves)
 	
 	_clear_menu_items()
 	_draw_menu_background()
@@ -653,6 +669,17 @@ func _update_cursor() -> void:
 		MenuState.MAP_SELECT:
 			target_x = center_offset_x + 65 * scale_factor
 			target_y = center_offset_y + (50 + map_index * 14) * scale_factor
+		MenuState.SAVE_GAME:
+			if not save_input_active:
+				target_x = center_offset_x + (MENU_X) * scale_factor
+				target_y = center_offset_y + (MENU_Y + 10 + save_slot_index * 15) * scale_factor
+			else:
+				# Hide cursor when typing
+				cursor_rect.visible = false
+				return
+		MenuState.LOAD_GAME:
+			target_x = center_offset_x + (MENU_X) * scale_factor
+			target_y = center_offset_y + (MENU_Y + 10 + save_slot_index * 15) * scale_factor
 	
 	cursor_rect.position = Vector2(target_x, target_y)
 	
@@ -696,6 +723,18 @@ func _update_menu_highlights() -> void:
 				var label = get_node_or_null("MapLabel_%d" % i) as Label
 				if label:
 					label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == map_index else COLOR_TEXT)
+		
+		MenuState.SAVE_GAME:
+			for i in range(MAX_SAVE_SLOTS):
+				var label = get_node_or_null("SaveSlot_%d" % i) as Label
+				if label:
+					label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == save_slot_index else COLOR_TEXT)
+		
+		MenuState.LOAD_GAME:
+			for i in range(MAX_SAVE_SLOTS):
+				var label = get_node_or_null("SaveSlot_%d" % i) as Label
+				if label:
+					label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == save_slot_index else COLOR_TEXT)
 
 
 func _process(delta: float) -> void:
@@ -709,6 +748,31 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Handle text input for save game name - check this FIRST before action presses
+	if current_state == MenuState.SAVE_GAME and save_input_active:
+		if event is InputEventKey and event.pressed and not event.is_echo():
+			print("[Input] Key pressed - keycode: ", event.keycode, ", unicode: ", event.unicode)
+			# Handle backspace
+			if event.keycode == KEY_BACKSPACE:
+				if save_input_text.length() > 0:
+					save_input_text = save_input_text.substr(0, save_input_text.length() - 1)
+					print("[Input] After backspace: '", save_input_text, "'")
+					_refresh_save_screen()
+				get_viewport().set_input_as_handled()
+				return
+			# Handle regular characters (printable ASCII)
+			elif event.unicode >= 32 and event.unicode < 127:
+				if save_input_text.length() < 24:
+					save_input_text += char(event.unicode)
+					print("[Input] After add char: '", save_input_text, "'")
+					_refresh_save_screen()
+				get_viewport().set_input_as_handled()
+				return
+			# Let ENTER and ESC pass through
+			elif event.keycode != KEY_ENTER and event.keycode != KEY_ESCAPE:
+				get_viewport().set_input_as_handled()
+				return
+	
 	if event.is_action_pressed("ui_accept"):
 		_handle_accept()
 	elif event.is_action_pressed("ui_cancel"):
@@ -725,8 +789,6 @@ func _input(event: InputEvent) -> void:
 
 func _handle_accept() -> void:
 	match current_state:
-		MenuState.TITLE:
-			_show_main_menu()
 		MenuState.MAIN:
 			_handle_main_menu_select()
 		MenuState.EPISODE_SELECT:
@@ -739,25 +801,55 @@ func _handle_accept() -> void:
 			_start_game()
 		MenuState.VIEW_SIZE:
 			_show_main_menu()  # Save and return
+		MenuState.SAVE_GAME:
+			if save_input_active:
+				# Save the game
+				if save_input_text.length() > 0:
+					_save_game_to_slot(save_slot_index, save_input_text)
+			else:
+				# Start entering name
+				save_input_active = true
+				# Pre-fill with existing name if overwriting, or leave empty
+				if save_slot_index < save_slots.size() and save_slots[save_slot_index].has("name"):
+					save_input_text = save_slots[save_slot_index].get("name", "")
+				else:
+					save_input_text = ""
+				_show_save_game_screen()
+		MenuState.LOAD_GAME:
+			# Load game from selected slot if it has data
+			if save_slot_index < save_slots.size() and save_slots[save_slot_index].has("name"):
+				_load_game_from_slot(save_slot_index)
 
 
 func _handle_main_menu_select() -> void:
 	if not main_menu_options[main_menu_index].active:
 		return
 	
-	match main_menu_index:
+	# Check if first option is Resume Game
+	var offset = 0
+	if entered_from_game and main_menu_options[0].text == "Resume Game":
+		offset = 1
+		if main_menu_index == 0:
+			# Resume Game - return to Wolf.tscn with saved state
+			get_tree().change_scene_to_file("res://Wolf.tscn")
+			return
+	
+	match main_menu_index - offset:
 		0:  # New Game
 			if available_games.size() > 0:
 				GameState.selected_game = available_games[0].id
+				# Clear saved state when starting new game
+				GameState.clear_saved_state()
 				_show_episode_select()
 		1:  # Sound - placeholder
 			pass
 		2:  # Control - placeholder
 			pass
-		3:  # Load Game - placeholder
-			pass
-		4:  # Save Game - disabled
-			pass
+		3:  # Load Game
+			_show_load_game_screen()
+		4:  # Save Game
+			if entered_from_game:
+				_show_save_game_screen()
 		5:  # Change View
 			_show_view_size_screen()
 		6:  # Read This! - placeholder
@@ -765,7 +857,7 @@ func _handle_main_menu_select() -> void:
 		7:  # View Scores
 			_show_high_scores()
 		8:  # Back to Demo
-			_show_title()
+			get_tree().change_scene_to_file("res://TitleScreen.tscn")
 		9:  # Quit
 			get_tree().quit()
 
@@ -773,7 +865,12 @@ func _handle_main_menu_select() -> void:
 func _handle_cancel() -> void:
 	match current_state:
 		MenuState.MAIN:
-			_show_title()
+			if entered_from_game:
+				# Return to game if we came from it - state will be restored in Wolf.tscn
+				get_tree().change_scene_to_file("res://Wolf.tscn")
+			else:
+				# Return to title screen if we came from there
+				get_tree().change_scene_to_file("res://TitleScreen.tscn")
 		MenuState.EPISODE_SELECT:
 			_show_main_menu()
 		MenuState.DIFFICULTY_SELECT:
@@ -785,8 +882,17 @@ func _handle_cancel() -> void:
 			_show_main_menu()
 		MenuState.GAME_SELECT: # If added later
 			_show_main_menu()
-		_: # Default to title
-			_show_title()
+		MenuState.SAVE_GAME:
+			if save_input_active:
+				# Cancel input - return to slot list
+				save_input_active = false
+				save_input_text = ""
+				_refresh_save_screen()
+			else:
+				# Exit save screen - return to main menu
+				_show_main_menu()
+		MenuState.LOAD_GAME:
+			_show_main_menu()
 
 
 func _show_high_scores() -> void:
@@ -824,7 +930,7 @@ func _show_high_scores() -> void:
 	add_child(label)
 	
 	# Set a temporary state so input knows where to return
-	current_state = MenuState.TITLE # Re-using title state for simple "any key" behavior
+	current_state = MenuState.MAIN # Return to main menu on any key
 	
 	cursor_rect.visible = false
 
@@ -896,18 +1002,278 @@ func _update_view_size_preview() -> void:
 	preview.size = Vector2(view_width * scale_factor, view_height * scale_factor)
 
 
-func _handle_left() -> void:
-	match current_state:
-		MenuState.VIEW_SIZE:
-			GameState.decrease_view_size()
-			_update_view_size_preview()
+func _show_save_game_screen() -> void:
+	current_state = MenuState.SAVE_GAME
+	
+	# Load existing saves
+	_load_save_slots()
+	
+	_refresh_save_screen()
 
 
-func _handle_right() -> void:
-	match current_state:
-		MenuState.VIEW_SIZE:
-			GameState.increase_view_size()
-			_update_view_size_preview()
+func _refresh_save_screen() -> void:
+	# Refresh the screen while maintaining input state
+	_clear_menu_items()
+	_draw_menu_background()
+	
+	# Draw header (C_SAVEGAMEPIC)
+	if pics.has("C_SAVEGAMEPIC"):
+		var header = TextureRect.new()
+		header.name = "SaveGameHeader"
+		header.texture = pics["C_SAVEGAMEPIC"]
+		header.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		header.stretch_mode = TextureRect.STRETCH_SCALE
+		header.position = Vector2(84 * scale_factor, 0)
+		header.size = Vector2(pics["C_SAVEGAMEPIC"].get_width() * scale_factor,
+							   pics["C_SAVEGAMEPIC"].get_height() * scale_factor)
+		add_child(header)
+	
+	# Draw save slots
+	var slot_start_y = MENU_Y + 10
+	for i in range(MAX_SAVE_SLOTS):
+		# Draw border frame around slot
+		var frame = ColorRect.new()
+		frame.name = "SaveSlotFrame_%d" % i
+		frame.color = COLOR_BORDER if i == save_slot_index else Color(0.3, 0.3, 0.3)
+		frame.position = Vector2((MENU_X + 24) * scale_factor, (slot_start_y + i * 15 - 1) * scale_factor)
+		frame.size = Vector2(140 * scale_factor, 12 * scale_factor)
+		add_child(frame)
+		
+		# Inner background
+		var inner_bg = ColorRect.new()
+		inner_bg.name = "SaveSlotBG_%d" % i
+		inner_bg.color = Color(0.1, 0.1, 0.1)
+		inner_bg.position = Vector2((MENU_X + 25) * scale_factor, (slot_start_y + i * 15) * scale_factor)
+		inner_bg.size = Vector2(138 * scale_factor, 10 * scale_factor)
+		add_child(inner_bg)
+		
+		var slot_label = Label.new()
+		slot_label.name = "SaveSlot_%d" % i
+		
+		# If this is the slot being edited, show the input text
+		if save_input_active and i == save_slot_index:
+			if save_input_text.length() > 0:
+				slot_label.text = save_input_text + "_"
+			else:
+				slot_label.text = "_"
+		# Otherwise show saved name or "- empty -"
+		elif i < save_slots.size() and save_slots[i].has("name"):
+			slot_label.text = save_slots[i]["name"]
+		else:
+			slot_label.text = "- empty -"
+		
+		slot_label.add_theme_font_size_override("font_size", int(7 * scale_factor))
+		
+		if i == save_slot_index:
+			slot_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+		else:
+			slot_label.add_theme_color_override("font_color", COLOR_TEXT)
+		
+		slot_label.position = Vector2((MENU_X + 28) * scale_factor, (slot_start_y + i * 15) * scale_factor)
+		add_child(slot_label)
+	
+	# Instructions at bottom
+	if save_input_active:
+		var instr = Label.new()
+		instr.name = "SaveInstruction"
+		instr.text = "ENTER to save, ESC to cancel"
+		instr.add_theme_font_size_override("font_size", int(9 * scale_factor))
+		instr.add_theme_color_override("font_color", COLOR_TEXT)
+		instr.position = Vector2((MENU_X + 10) * scale_factor, (MENU_Y + 160) * scale_factor)
+		add_child(instr)
+	else:
+		var instr = Label.new()
+		instr.name = "SaveInstruction"
+		instr.text = "ENTER to name save, ESC to exit"
+		instr.add_theme_font_size_override("font_size", int(9 * scale_factor))
+		instr.add_theme_color_override("font_color", COLOR_TEXT)
+		instr.position = Vector2((MENU_X + 10) * scale_factor, (MENU_Y + 160) * scale_factor)
+		add_child(instr)
+	
+	_update_cursor()
+
+
+func _update_save_input_display() -> void:
+	# Update only the input label without rebuilding entire screen
+	var input_label = get_node_or_null("SaveInputLabel") as Label
+	if input_label:
+		input_label.text = "Name: " + save_input_text + "_"
+		print("[Update] Updated input label to: ", input_label.text)
+	else:
+		print("[Update] SaveInputLabel not found! save_input_active = ", save_input_active)
+
+
+func _load_save_slots() -> void:
+	save_slots.clear()
+	for i in range(MAX_SAVE_SLOTS):
+		var save_path = "user://saves/save_%d.json" % i
+		if FileAccess.file_exists(save_path):
+			var file = FileAccess.open(save_path, FileAccess.READ)
+			if file:
+				var json_text = file.get_as_text()
+				var save_data = JSON.parse_string(json_text)
+				if save_data:
+					save_slots.append(save_data)
+				else:
+					save_slots.append({})
+				file.close()
+			else:
+				save_slots.append({})
+		else:
+			save_slots.append({})
+
+
+func _save_game_to_slot(slot: int, save_name: String) -> void:
+	# Create saves directory if it doesn't exist
+	DirAccess.make_dir_recursive_absolute("user://saves/")
+	
+	# Prepare save data
+	var save_data = {
+		"name": save_name,
+		"timestamp": Time.get_unix_time_from_system(),
+		"game_state": GameState.saved_game_state
+	}
+	
+	# Save to file
+	var save_path = "user://saves/save_%d.json" % slot
+	var file = FileAccess.open(save_path, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(save_data, "\t"))
+		file.close()
+		print("Game saved to slot ", slot, " as '", save_name, "'")
+		
+		# Refresh save slots display
+		_load_save_slots()
+		save_input_active = false
+		save_input_text = ""
+		_show_save_game_screen()
+	else:
+		push_error("Failed to save game to slot ", slot)
+
+
+func _show_load_game_screen() -> void:
+	current_state = MenuState.LOAD_GAME
+	
+	# Load existing saves
+	_load_save_slots()
+	
+	_refresh_load_screen()
+
+
+func _refresh_load_screen() -> void:
+	# Similar to save screen but for loading
+	_clear_menu_items()
+	_draw_menu_background()
+	
+	# Draw header (C_LOADGAMEPIC or reuse C_SAVEGAMEPIC)
+	if pics.has("C_LOADGAMEPIC"):
+		var header = TextureRect.new()
+		header.name = "LoadGameHeader"
+		header.texture = pics["C_LOADGAMEPIC"]
+		header.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		header.stretch_mode = TextureRect.STRETCH_SCALE
+		header.position = Vector2(84 * scale_factor, 0)
+		header.size = Vector2(pics["C_LOADGAMEPIC"].get_width() * scale_factor,
+							   pics["C_LOADGAMEPIC"].get_height() * scale_factor)
+		add_child(header)
+	elif pics.has("C_SAVEGAMEPIC"):
+		# Fallback to save game pic if load game pic not available
+		var header = TextureRect.new()
+		header.name = "LoadGameHeader"
+		header.texture = pics["C_SAVEGAMEPIC"]
+		header.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		header.stretch_mode = TextureRect.STRETCH_SCALE
+		header.position = Vector2(84 * scale_factor, 0)
+		header.size = Vector2(pics["C_SAVEGAMEPIC"].get_width() * scale_factor,
+							   pics["C_SAVEGAMEPIC"].get_height() * scale_factor)
+		add_child(header)
+	
+	# Draw save slots
+	var slot_start_y = MENU_Y + 10
+	for i in range(MAX_SAVE_SLOTS):
+		# Draw border frame around slot
+		var frame = ColorRect.new()
+		frame.name = "SaveSlotFrame_%d" % i
+		frame.color = COLOR_BORDER if i == save_slot_index else Color(0.3, 0.3, 0.3)
+		frame.position = Vector2((MENU_X + 24) * scale_factor, (slot_start_y + i * 15 - 1) * scale_factor)
+		frame.size = Vector2(140 * scale_factor, 12 * scale_factor)
+		add_child(frame)
+		
+		# Inner background
+		var inner_bg = ColorRect.new()
+		inner_bg.name = "SaveSlotBG_%d" % i
+		inner_bg.color = Color(0.1, 0.1, 0.1)
+		inner_bg.position = Vector2((MENU_X + 25) * scale_factor, (slot_start_y + i * 15) * scale_factor)
+		inner_bg.size = Vector2(138 * scale_factor, 10 * scale_factor)
+		add_child(inner_bg)
+		
+		var slot_label = Label.new()
+		slot_label.name = "SaveSlot_%d" % i
+		
+		# Show saved name or "- empty -"
+		if i < save_slots.size() and save_slots[i].has("name"):
+			slot_label.text = save_slots[i]["name"]
+		else:
+			slot_label.text = "- empty -"
+		
+		slot_label.add_theme_font_size_override("font_size", int(7 * scale_factor))
+		
+		if i == save_slot_index:
+			slot_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+		else:
+			slot_label.add_theme_color_override("font_color", COLOR_TEXT)
+		
+		slot_label.position = Vector2((MENU_X + 28) * scale_factor, (slot_start_y + i * 15) * scale_factor)
+		add_child(slot_label)
+	
+	# Instructions at bottom
+	var instr = Label.new()
+	instr.name = "LoadInstruction"
+	instr.text = "ENTER to load, ESC to exit"
+	instr.add_theme_font_size_override("font_size", int(9 * scale_factor))
+	instr.add_theme_color_override("font_color", COLOR_TEXT)
+	instr.position = Vector2((MENU_X + 10) * scale_factor, (MENU_Y + 160) * scale_factor)
+	add_child(instr)
+	
+	_update_cursor()
+
+
+func _load_game_from_slot(slot: int) -> void:
+	var save_path = "user://saves/save_%d.json" % slot
+	if not FileAccess.file_exists(save_path):
+		print("No save file in slot ", slot)
+		return
+	
+	var file = FileAccess.open(save_path, FileAccess.READ)
+	if not file:
+		push_error("Failed to open save file in slot ", slot)
+		return
+	
+	var json_text = file.get_as_text()
+	file.close()
+	
+	var save_data = JSON.parse_string(json_text)
+	if not save_data or not save_data.has("game_state"):
+		push_error("Invalid save data in slot ", slot)
+		return
+	
+	# Restore game state
+	GameState.saved_game_state = save_data["game_state"]
+	print("Loaded game from slot ", slot, ": ", save_data.get("name", "Unknown"))
+	
+	# Load the game scene which will restore state
+	get_tree().change_scene_to_file("res://Wolf.tscn")
+
+
+func _check_for_saved_games() -> bool:
+	# Check if any save files exist
+	for i in range(MAX_SAVE_SLOTS):
+		var save_path = "user://saves/save_%d.json" % i
+		if FileAccess.file_exists(save_path):
+			print("[MainMenu] Found save file: ", save_path)
+			return true
+	print("[MainMenu] No save files found")
+	return false
 
 
 func _handle_up() -> void:
@@ -926,6 +1292,11 @@ func _handle_up() -> void:
 		MenuState.VIEW_SIZE:
 			GameState.increase_view_size()
 			_update_view_size_preview()
+		MenuState.SAVE_GAME:
+			if not save_input_active:
+				save_slot_index = (save_slot_index - 1 + MAX_SAVE_SLOTS) % MAX_SAVE_SLOTS
+		MenuState.LOAD_GAME:
+			save_slot_index = (save_slot_index - 1 + MAX_SAVE_SLOTS) % MAX_SAVE_SLOTS
 	
 	_update_cursor()
 	_update_menu_highlights()
@@ -947,9 +1318,28 @@ func _handle_down() -> void:
 		MenuState.VIEW_SIZE:
 			GameState.decrease_view_size()
 			_update_view_size_preview()
+		MenuState.SAVE_GAME:
+			if not save_input_active:
+				save_slot_index = (save_slot_index + 1) % MAX_SAVE_SLOTS
+		MenuState.LOAD_GAME:
+			save_slot_index = (save_slot_index + 1) % MAX_SAVE_SLOTS
 	
 	_update_cursor()
 	_update_menu_highlights()
+
+
+func _handle_left() -> void:
+	match current_state:
+		MenuState.VIEW_SIZE:
+			GameState.decrease_view_size()
+			_update_view_size_preview()
+
+
+func _handle_right() -> void:
+	match current_state:
+		MenuState.VIEW_SIZE:
+			GameState.increase_view_size()
+			_update_view_size_preview()
 
 
 func _start_game() -> void:
@@ -965,4 +1355,5 @@ func _start_game() -> void:
 	SoundManager.reload_sounds()
 	
 	GameState.start_new_game()
+	GameState.in_game = true
 	get_tree().change_scene_to_file("res://Wolf.tscn")

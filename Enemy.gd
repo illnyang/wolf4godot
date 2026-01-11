@@ -881,10 +881,8 @@ func die() -> void:
 	# Emit signal
 	died.emit(self)
 	
-	# Remove after delay
 	await get_tree().create_timer(3.0).timeout
 	state = State.DEAD
-	queue_free()
 
 func _show_death_sprite() -> void:
 	if sprite == null:

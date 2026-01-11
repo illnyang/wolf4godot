@@ -3,9 +3,9 @@ signal weapon_changed(weapon_name)
 
 @export var sprite_texture_folder: String = "user://assets/wolf3d/sprites/"
 @export var weapon_scale: float = 10.0 
-@export var current_weapon: String = "knife"
+@export var current_weapon: String = "knife" 
 
-var unlocked_weapons: Array = ["knife", "pistol", "machinegun", "chaingun"]
+var unlocked_weapons: Array = ["knife", "pistol"]
 const WEAPON_MAP = {
 	"knife": 414,      
 	"pistol": 419,     
@@ -56,6 +56,8 @@ func _input(event: InputEvent) -> void:
 			var weapon_to_switch = INPUT_MAP[weapon_key]
 			if weapon_to_switch in unlocked_weapons:
 				switch_weapon(weapon_to_switch)
+			else:
+				print("Broń locked: ", weapon_to_switch)
 
 func _on_gamestate_weapon_changed(_new_weapon_enum) -> void:
 	_sync_to_gamestate()
@@ -64,6 +66,9 @@ func _sync_to_gamestate() -> void:
 	var weapon_enum = GameState.weapon
 	if REV_ENUM_MAP.has(weapon_enum):
 		var weapon_name = REV_ENUM_MAP[weapon_enum]
+		if not weapon_name in unlocked_weapons:
+			unlocked_weapons.append(weapon_name)
+			
 		if current_weapon != weapon_name:
 			switch_weapon(weapon_name, true)
 

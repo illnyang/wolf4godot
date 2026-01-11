@@ -212,7 +212,11 @@ class MapGrid:
 
 	func load_root(json_path: String) -> void:
 		var file := FileAccess.open(json_path, FileAccess.READ)
+		if not file:
+			push_error("Failed to open map file: ", json_path)
+			return
 		var content := file.get_as_text()
+		file.close()
 		var root = JSON.parse_string(content) as Dictionary
 
 		_tileGrid = root["Tiles"]
@@ -261,6 +265,12 @@ func _ready() -> void:
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
+	# Check if we have a saved game state to restore
+	if GameState.has_saved_state():
+		print("MapLoader: Restoring saved game state")
+		_restore_saved_state()
+		return
+	
 	# Use selected map from GameState if available
 	var map_path = GameState.selected_map_path if GameState.selected_map_path != "" else json_path
 	print("MapLoader: Loading map from: ", map_path)
@@ -270,7 +280,162 @@ func _ready() -> void:
 	spawn_layer1()
 	spawn_layer2()
 	add_child(root_node)
+
+
+func _restore_saved_state() -> void:
+	var state = GameState.saved_game_state
 	
+	# Restore GameState values
+	if state.has("health"):
+		GameState.health = state["health"]
+	if state.has("lives"):
+		GameState.lives = state["lives"]
+	if state.has("ammo"):
+		GameState.ammo = state["ammo"]
+	if state.has("score"):
+		GameState.score = state["score"]
+	if state.has("keys"):
+		GameState.keys = state["keys"]
+	if state.has("weapon"):
+		GameState.weapon = state["weapon"]
+	if state.has("best_weapon"):
+		GameState.best_weapon = state["best_weapon"]
+	if state.has("chosen_weapon"):
+		GameState.chosen_weapon = state["chosen_weapon"]
+	if state.has("current_map"):
+		GameState.current_map = state["current_map"]
+	if state.has("episode"):
+		GameState.episode = state["episode"]
+	if state.has("selected_map_path"):
+		GameState.selected_map_path = state["selected_map_path"]
+	if state.has("selected_game"):
+		GameState.selected_game = state["selected_game"]
+	if state.has("difficulty"):
+		GameState.difficulty = state["difficulty"]
+	if state.has("view_size"):
+		GameState.view_size = state["view_size"]
+	if state.has("next_extra_life"):
+		GameState.next_extra_life = state["next_extra_life"]
+	
+	print("MapLoader: Restored GameState - Health: ", GameState.health, ", Lives: ", GameState.lives, ", Ammo: ", GameState.ammo)
+	
+	# Load the map
+	var map_path = state.get("selected_map_path", json_path)
+	print("MapLoader: Restoring map from: ", map_path)
+	grid = MapGrid.new(map_path)
+	update_tile_material()
+	spawn_layer1()
+	
+	# Spawn layer2 but skip enemies (we'll spawn only saved ones)
+	spawn_layer2(true)
+	add_child(root_node)
+	
+	# Wait one frame for everything to be ready
+	await get_tree().process_frame
+	
+	# Restore player position
+	var player = get_tree().get_first_node_in_group("player")
+	if player and state.has("player_position"):
+		var pos_dict = state["player_position"]
+		player.global_position = Vector3(pos_dict["x"], pos_dict["y"], pos_dict["z"])
+		player.rotation.y = state.get("player_rotation", 0.0)
+		print("MapLoader: Player position restored to ", player.global_position)
+	
+	# Restore ONLY the enemies that were alive when we saved
+	if state.has("enemies"):
+		var saved_enemies = state["enemies"]
+		var enemy_scene = preload("res://Enemy.tscn")
+		
+		for saved_enemy in saved_enemies:
+			# Create new enemy instance
+			var enemy_node: Area3D = enemy_scene.instantiate()
+			enemy_node.name = "Enemy_Restored_%d" % saved_enemies.find(saved_enemy)
+			
+			# Restore all properties
+			var pos_dict = saved_enemy["position"]
+			enemy_node.global_position = Vector3(pos_dict["x"], pos_dict["y"], pos_dict["z"])
+			enemy_node.rotation.y = saved_enemy["rotation"]
+			enemy_node.enemy_type = saved_enemy["enemy_type"]
+			enemy_node.sprite_texture_folder = _get_sprite_texture_folder()
+			enemy_node.health = saved_enemy["health"]
+			enemy_node.state = saved_enemy["state"]
+			enemy_node.direction = saved_enemy["direction"]
+			enemy_node.in_attack_mode = saved_enemy["in_attack_mode"]
+			enemy_node.tilex = saved_enemy["tilex"]
+			enemy_node.tiley = saved_enemy["tiley"]
+			
+			root_node.add_child(enemy_node)
+		
+		print("MapLoader: Restored ", saved_enemies.size(), " enemies")
+	
+	# Restore corpses
+	if state.has("corpses"):
+		var saved_corpses = state["corpses"]
+		var enemy_scene = preload("res://Enemy.tscn")
+		
+		for saved_corpse in saved_corpses:
+			# Create corpse instance
+			var corpse_node: Area3D = enemy_scene.instantiate()
+			corpse_node.name = "Corpse_Restored_%d" % saved_corpses.find(saved_corpse)
+			
+			# Set corpse properties
+			var pos_dict = saved_corpse["position"]
+			corpse_node.global_position = Vector3(pos_dict["x"], pos_dict["y"], pos_dict["z"])
+			corpse_node.rotation.y = saved_corpse["rotation"]
+			corpse_node.enemy_type = saved_corpse["enemy_type"]
+			corpse_node.sprite_texture_folder = _get_sprite_texture_folder()
+			corpse_node.is_dead = true
+			corpse_node.state = saved_corpse.get("state", 5)  # State.DEAD
+			corpse_node.health = 0
+			
+			root_node.add_child(corpse_node)
+			
+			# Wait a frame then show death sprite
+			await get_tree().process_frame
+			if corpse_node.has_method("_show_death_sprite"):
+				corpse_node._show_death_sprite()
+			# Disable collision
+			if corpse_node.has_node("CollisionShape3D"):
+				var col = corpse_node.get_node("CollisionShape3D")
+				col.disabled = true
+		
+		print("MapLoader: Restored ", saved_corpses.size(), " corpses")
+	
+	# Restore doors state
+	if state.has("doors"):
+		var saved_doors = state["doors"]
+		var doors = get_tree().get_nodes_in_group("doors")
+		
+		for saved_door in saved_doors:
+			var grid_x = saved_door.get("grid_x", -1)
+			var grid_y = saved_door.get("grid_y", -1)
+			
+			if grid_x < 0 or grid_y < 0:
+				continue
+			
+			# Find matching door by grid position
+			for door in doors:
+				if door and is_instance_valid(door):
+					var door_x = door.get_meta("grid_x") if door.has_meta("grid_x") else -1
+					var door_y = door.get_meta("grid_y") if door.has_meta("grid_y") else -1
+					
+					if door_x == grid_x and door_y == grid_y:
+						# Restore door state
+						door.current_state = saved_door.get("current_state", 0)
+						door.open_ratio = saved_door.get("open_ratio", 0.0)
+						door.auto_close_timer = saved_door.get("auto_close_timer", 0.0)
+						# Apply visual position
+						if door.has_method("_apply_slide"):
+							door._apply_slide()
+						break
+		
+		print("MapLoader: Restored ", saved_doors.size(), " doors state")
+	
+	print("MapLoader: Game state restored successfully")
+	
+	# Clear saved state so it's not used again on death/restart
+	GameState.clear_saved_state()
+
 # Asset paths - computed dynamically based on selected game
 func _get_tile_texture_folder() -> String:
 	return "user://assets/%s/walls/" % GameState.selected_game
@@ -359,11 +524,14 @@ func spawn_layer1() -> void:
 				var door_axis: bool = L1Utils.get_axis(tile_id)
 				var door_inst := MeshInstance3D.new()
 				door_inst.set_script(load("res://doors.gd"))
-				door_inst.name = "Door"
+				door_inst.name = "Door_%d_%d" % [x, y]
 				door_inst.mesh = door_ew_mesh if door_axis else door_ns_mesh
 				door_inst.material_override = tile_material
 				door_inst.position = Vector3(x + 0.5, 0, y + 0.5)
 				door_inst.rotation_degrees.y += -90 * float(door_axis)
+				# Store grid position for save/load
+				door_inst.set_meta("grid_x", x)
+				door_inst.set_meta("grid_y", y)
 
 				root_node.add_child(door_inst)
 
@@ -393,7 +561,7 @@ func _get_sprite_texture_folder() -> String:
 
 var player_scene = preload("res://Player.tscn")
 
-func spawn_layer2() -> void:
+func spawn_layer2(skip_enemies: bool = false) -> void:
 	var added_player: bool = false
 	for y in range(grid.height()):
 		for x in range(grid.width()):
@@ -470,6 +638,10 @@ func spawn_layer2() -> void:
 			
 			# Spawn enemies
 			elif L2Utils.is_enemy(id):
+				# Skip spawning enemies if restoring saved state
+				if skip_enemies:
+					continue
+				
 				# Skip enemies that shouldn't spawn on current difficulty
 				if not L2Utils.should_spawn_for_difficulty(id):
 					continue

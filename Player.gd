@@ -156,6 +156,12 @@ func _try_interact() -> void:
 			_trigger_level_complete()
 			return
 	
+	# Check if player is standing inside a door (can happen when door closes on player)
+	var door_at_player = _find_door_at_tile(player_tx, player_tz)
+	if door_at_player:
+		door_at_player.interact()
+		return
+	
 	# Check for pushwall first
 	var pushwall_node = _find_pushwall_at_tile(tx, tz)
 	if pushwall_node:
@@ -296,7 +302,21 @@ func _resolve_box_collision(tx: int, tz: int, target_x: float, target_z: float) 
 			position.x = target_x + (dx / dist) * penetration
 			position.z = target_z + (dz / dist) * penetration
 		else:
-			position.x += radius + skin
+			# Player is exactly at tile center - push away from tile center
+			var tile_center_x = tx + 0.5
+			var tile_center_z = tz + 0.5
+			var away_x = position.x - tile_center_x
+			var away_z = position.z - tile_center_z
+			var away_dist = sqrt(away_x * away_x + away_z * away_z)
+			
+			if away_dist > 0.01:
+				# Push in direction away from center
+				position.x = tile_center_x + (away_x / away_dist) * (radius + skin)
+				position.z = tile_center_z + (away_z / away_dist) * (radius + skin)
+			else:
+				# Extremely rare case - push in arbitrary direction (right)
+				position.x = tile_center_x + radius + skin
+				position.z = tile_center_z
 
 func _update_tile_indices() -> void:
 	tilex = int(floor(position.x))
@@ -328,6 +348,11 @@ func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
 	var range = 1.5 if weapon == GameState.Weapon.KNIFE else 100.0
 	var to = from + forward * range
 	
+	# First check walls and doors using tile-based line of sight
+	if not _check_shot_line(from, to):
+		print("Shot blocked by wall or door!")
+		return
+	
 	# Create raycast query that hits collision layer 2 (enemies)
 	var query = PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = 2  # Layer 2 = enemies (as set in Enemy.tscn)
@@ -346,6 +371,63 @@ func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
 			print("Hit: ", result.collider.name)
 	else:
 		print("Missed!")
+
+func _check_shot_line(from: Vector3, to: Vector3) -> bool:
+	"""Check if shot line is blocked by walls or closed doors"""
+	if not grid:
+		return true  # No grid = no collision check
+	
+	# Bresenham's line algorithm to check tiles between from and to
+	var x0 = int(floor(from.x))
+	var z0 = int(floor(from.z))
+	var x1 = int(floor(to.x))
+	var z1 = int(floor(to.z))
+	
+	var dx = abs(x1 - x0)
+	var dz = abs(z1 - z0)
+	var sx = 1 if x0 < x1 else -1
+	var sz = 1 if z0 < z1 else -1
+	var err = dx - dz
+	
+	var x = x0
+	var z = z0
+	
+	while true:
+		# Check current tile (skip starting tile where player stands)
+		if not (x == x0 and z == z0):
+			if not grid.is_within_grid(x, z):
+				return false
+			
+			var tile_id = grid.tile_at(x, z)
+			
+			# Walls block shots (1-53) - check if it's NOT a moved pushwall
+			if tile_id >= 1 and tile_id <= 53:
+				# If there's a pushwall at this position, check if it's still here
+				var pushwall = _find_pushwall_at_tile(x, z)
+				if not pushwall:
+					# Wall with no pushwall = solid wall, blocks shot
+					return false
+			
+			# Closed doors block shots (90-101)
+			if tile_id >= 90 and tile_id <= 101:
+				var door = _find_door_at_tile(x, z)
+				if door and not door.is_open():
+					return false
+		
+		# Reached target
+		if x == x1 and z == z1:
+			break
+		
+		# Step to next tile
+		var e2 = 2 * err
+		if e2 > -dz:
+			err -= dz
+			x += sx
+		if e2 < dx:
+			err += dx
+			z += sz
+	
+	return true
 
 # Uncomment to run FPS benchmark:
 func _start_benchmark():

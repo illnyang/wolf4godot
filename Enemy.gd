@@ -710,23 +710,35 @@ func _is_position_blocked(pos: Vector3) -> bool:
 	if grid == null:
 		return false
 	
-	var check_x = int(floor(pos.x))
-	var check_z = int(floor(pos.z))
+	# Check collision with a radius (enemies have width, not just a point)
+	var enemy_radius = 0.3  # Enemies take up space, not just a single point
 	
-	if not grid.is_within_grid(check_x, check_z):
-		return true
+	# Check 4 corners of the enemy's bounding box
+	var corners = [
+		Vector2(pos.x - enemy_radius, pos.z - enemy_radius),
+		Vector2(pos.x + enemy_radius, pos.z - enemy_radius),
+		Vector2(pos.x - enemy_radius, pos.z + enemy_radius),
+		Vector2(pos.x + enemy_radius, pos.z + enemy_radius)
+	]
 	
-	var tile_id = grid.tile_at(check_x, check_z)
-	
-	# Walls block movement
-	if tile_id >= 1 and tile_id <= 53:
-		return true
-	
-	# Closed doors block movement
-	if tile_id >= 90 and tile_id <= 101:
-		var door = _find_door_at(check_x, check_z)
-		if door and not door.is_open():
+	for corner in corners:
+		var check_x = int(floor(corner.x))
+		var check_z = int(floor(corner.y))
+		
+		if not grid.is_within_grid(check_x, check_z):
 			return true
+		
+		var tile_id = grid.tile_at(check_x, check_z)
+		
+		# Walls block movement
+		if tile_id >= 1 and tile_id <= 53:
+			return true
+		
+		# Closed doors block movement
+		if tile_id >= 90 and tile_id <= 101:
+			var door = _find_door_at(check_x, check_z)
+			if door and not door.is_open():
+				return true
 	
 	return false
 
@@ -996,18 +1008,26 @@ func _calc_rotate() -> int:
 		# Fallback: use player's rotation
 		player_angle = player.global_rotation.y
 	
-	# Calculate angle from enemy to player
+	# Calculate angle from player to enemy (view angle)
 	var dx = position.x - player.global_position.x
 	var dz = position.z - player.global_position.z
-	var angle_to_player = atan2(dz, dx)
+	var angle_to_enemy = atan2(dz, dx)
 	
-	var relative_angle = angle_to_player - player_angle
+	# Calculate which direction the enemy is facing
+	# direction is 0-7 (N, NE, E, SE, S, SW, W, NW)
+	var enemy_facing_angle = direction * (PI / 4.0)  # Convert direction to radians
 	
+	# Calculate relative angle: (player's view to enemy) - (enemy's facing direction)
+	# This gives us which sprite rotation to show
+	var relative_angle = (angle_to_enemy - player_angle) - enemy_facing_angle
+	
+	# Normalize angle to 0-TAU range
 	while relative_angle < 0:
 		relative_angle += TAU
 	while relative_angle >= TAU:
 		relative_angle -= TAU
 	
+	# Convert to 0-7 sprite rotation index
 	var rotation = int((relative_angle + PI / 8.0) / (PI / 4.0))
 	rotation = rotation % 8
 	

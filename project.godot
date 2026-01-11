@@ -21,6 +21,7 @@ AssetExtractor="*res://extract_wolf3d.gd"
 GameState="*res://GameState.gd"
 SoundManager="*res://SoundManager.gd"
 MusicManager="*res://MusicManager.gd"
+FontManager="*res://FontManager.gd"
 DeathSequence="*res://DeathSequence.gd"
 
 [input]

@@ -90,6 +90,10 @@ func _ready() -> void:
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
+	# Wait for FontManager to load fonts
+	if not FontManager.font1 or not FontManager.font2:
+		await FontManager.fonts_loaded
+	
 	# Run extraction tests (output appears in console)
 	var TestRunner = preload("res://tests/test_extraction.gd")
 	TestRunner.run_all()
@@ -170,6 +174,21 @@ func _load_texture(path: String) -> Texture2D:
 	return load(fallback_path)
 
 
+func _apply_font(label: Label, font_id: int) -> void:
+	var font = FontManager.font1 if font_id == 1 else FontManager.font2
+	if font:
+		label.add_theme_font_override("font", font)
+		# CRITICAL: Use the EXACT native font size (10 or 13)
+		# Godot's FontFile only has glyphs cached at this specific size
+		# If we request a different size, Godot falls back to default font
+		var native_size = 10 if font_id == 1 else 13
+		label.add_theme_font_size_override("font_size", native_size)
+		# Scale the label to make text appear larger
+		label.scale = Vector2(scale_factor, scale_factor)
+	else:
+		print("[MainMenu] WARNING: Font %d is null!" % font_id)
+
+
 func _detect_games() -> void:
 	available_games.clear()
 	
@@ -235,7 +254,7 @@ func _show_title() -> void:
 	var press_label = Label.new()
 	press_label.name = "PressLabel"
 	press_label.text = "PRESS A KEY"
-	press_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	_apply_font(press_label, 1)
 	press_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	press_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	press_label.position = Vector2(0, 180 * scale_factor)
@@ -269,7 +288,7 @@ func _show_main_menu() -> void:
 		var label = Label.new()
 		label.name = "MenuItem_%d" % i
 		label.text = item.text
-		label.add_theme_font_size_override("font_size", int(12 * scale_factor))
+		_apply_font(label, 2)
 		
 		if not item.active:
 			label.add_theme_color_override("font_color", COLOR_DEACTIVE)
@@ -307,16 +326,19 @@ func _show_episode_select() -> void:
 	var header = Label.new()
 	header.name = "EpisodeHeader"
 	header.text = "Which episode to play?"
-	header.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	_apply_font(header, 2)
 	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.position = Vector2(0, 30 * scale_factor)
 	header.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
 	add_child(header)
 	
-	# Draw episode options
+	# Draw episode options - original shows Episode X and subtitle on two lines
 	for i in range(episode_options.size()):
 		var ep = episode_options[i]
+		var lines = ep.text.split("\n")
+		var episode_title = lines[0] if lines.size() > 0 else "Episode"
+		var episode_subtitle = lines[1] if lines.size() > 1 else ""
 		
 		# Episode pic
 		if pics.has(ep.pic):
@@ -325,19 +347,30 @@ func _show_episode_select() -> void:
 			pic_rect.texture = pics[ep.pic]
 			pic_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			pic_rect.stretch_mode = TextureRect.STRETCH_SCALE
-			pic_rect.position = Vector2(30 * scale_factor, (50 + i * 24) * scale_factor)
+			# Position pics on left side, spaced for 2 lines per episode
+			pic_rect.position = Vector2(30 * scale_factor, (48 + i * 22) * scale_factor)
 			pic_rect.size = Vector2(pics[ep.pic].get_width() * scale_factor,
 									 pics[ep.pic].get_height() * scale_factor)
 			add_child(pic_rect)
 		
-		# Episode text
-		var label = Label.new()
-		label.name = "EpisodeLabel_%d" % i
-		label.text = ep.text.split("\n")[0]  # Just first line
-		label.add_theme_font_size_override("font_size", int(10 * scale_factor))
-		label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT)
-		label.position = Vector2(120 * scale_factor, (52 + i * 24) * scale_factor)
-		add_child(label)
+		# Episode title (e.g., "Episode 1") - SCALED position to align with pics
+		var title_label = Label.new()
+		title_label.name = "EpisodeTitle_%d" % i
+		title_label.text = episode_title
+		_apply_font(title_label, 2)
+		title_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT)
+		title_label.position = Vector2(100 * scale_factor, (48 + i * 22) * scale_factor)
+		add_child(title_label)
+		
+		# Episode subtitle (e.g., "Escape from Wolfenstein")
+		if episode_subtitle != "":
+			var subtitle_label = Label.new()
+			subtitle_label.name = "EpisodeSubtitle_%d" % i
+			subtitle_label.text = episode_subtitle
+			_apply_font(subtitle_label, 2)
+			subtitle_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT)
+			subtitle_label.position = Vector2(100 * scale_factor, (48 + i * 22 + 13) * scale_factor)
+			add_child(subtitle_label)
 	
 	_update_cursor()
 
@@ -353,7 +386,7 @@ func _show_difficulty_select() -> void:
 	var header = Label.new()
 	header.name = "DifficultyHeader"
 	header.text = "How tough are you?"
-	header.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	_apply_font(header, 2)
 	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.position = Vector2(0, 50 * scale_factor)
@@ -380,7 +413,7 @@ func _show_difficulty_select() -> void:
 		var label = Label.new()
 		label.name = "DiffLabel_%d" % i
 		label.text = diff.text
-		label.add_theme_font_size_override("font_size", int(11 * scale_factor))
+		_apply_font(label, 1)
 		label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == difficulty_index else COLOR_TEXT)
 		label.position = Vector2(130 * scale_factor, (90 + i * 26) * scale_factor)
 		add_child(label)
@@ -406,7 +439,7 @@ func _show_map_select() -> void:
 	var header = Label.new()
 	header.name = "MapHeader"
 	header.text = "Select Level - Episode %d" % (selected_episode + 1)
-	header.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	_apply_font(header, 2)
 	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.position = Vector2(0, 30 * scale_factor)
@@ -422,7 +455,7 @@ func _show_map_select() -> void:
 		var label = Label.new()
 		label.name = "MapLabel_%d" % i
 		label.text = episode_maps[i].name
-		label.add_theme_font_size_override("font_size", int(10 * scale_factor))
+		_apply_font(label, 1)
 		label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == map_index else COLOR_TEXT)
 		label.position = Vector2(80 * scale_factor, (50 + i * 14) * scale_factor)
 		add_child(label)
@@ -507,6 +540,11 @@ func _clear_menu_items() -> void:
 
 
 func _update_cursor() -> void:
+	# Don't show cursor on VIEW_SIZE screen
+	if current_state == MenuState.VIEW_SIZE:
+		cursor_rect.visible = false
+		return
+	
 	cursor_rect.texture = pics.get("C_CURSOR1PIC") if cursor_frame == 0 else pics.get("C_CURSOR2PIC")
 	cursor_rect.visible = true
 	
@@ -524,7 +562,7 @@ func _update_cursor() -> void:
 			target_y = (MENU_Y + 10 + main_menu_index * 13) * scale_factor
 		MenuState.EPISODE_SELECT:
 			target_x = 15 * scale_factor
-			target_y = (52 + episode_index * 24) * scale_factor
+			target_y = (48 + episode_index * 22) * scale_factor
 		MenuState.DIFFICULTY_SELECT:
 			target_x = 35 * scale_factor
 			target_y = (88 + difficulty_index * 26) * scale_factor
@@ -553,9 +591,13 @@ func _update_menu_highlights() -> void:
 		
 		MenuState.EPISODE_SELECT:
 			for i in range(episode_options.size()):
-				var label = get_node_or_null("EpisodeLabel_%d" % i) as Label
-				if label:
-					label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT)
+				var color = COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT
+				var title_label = get_node_or_null("EpisodeTitle_%d" % i) as Label
+				var subtitle_label = get_node_or_null("EpisodeSubtitle_%d" % i) as Label
+				if title_label:
+					title_label.add_theme_color_override("font_color", color)
+				if subtitle_label:
+					subtitle_label.add_theme_color_override("font_color", color)
 		
 		MenuState.DIFFICULTY_SELECT:
 			for i in range(difficulty_options.size()):
@@ -635,8 +677,8 @@ func _handle_main_menu_select() -> void:
 			_show_view_size_screen()
 		6:  # Read This! - placeholder
 			pass
-		7:  # View Scores - placeholder
-			pass
+		7:  # View Scores
+			_show_high_scores()
 		8:  # Back to Demo
 			_show_title()
 		9:  # Quit
@@ -656,6 +698,50 @@ func _handle_cancel() -> void:
 		MenuState.VIEW_SIZE:
 			GameState.set_view_size(pre_view_size)
 			_show_main_menu()
+		MenuState.GAME_SELECT: # If added later
+			_show_main_menu()
+		_: # Default to title
+			_show_title()
+
+
+func _show_high_scores() -> void:
+	_clear_menu_items()
+	
+	# Background (Teal)
+	var bg = ColorRect.new()
+	bg.color = COLOR_VIEW_BORDER
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	
+	# Board
+	if pics.has("HIGHSCORESPIC"):
+		var board = TextureRect.new()
+		board.texture = pics["HIGHSCORESPIC"]
+		board.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		board.stretch_mode = TextureRect.STRETCH_SCALE
+		
+		var board_w = pics["HIGHSCORESPIC"].get_width() * scale_factor
+		var board_h = pics["HIGHSCORESPIC"].get_height() * scale_factor
+		var window_size = get_viewport().get_visible_rect().size
+		
+		board.position = Vector2((window_size.x - board_w) / 2, (window_size.y - board_h) / 2)
+		board.size = Vector2(board_w, board_h)
+		add_child(board)
+	
+	# Instructions
+	var label = Label.new()
+	label.text = "PRESS ANY KEY"
+	_apply_font(label, 1)
+	label.add_theme_color_override("font_color", Color.YELLOW)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.position = Vector2(0, 180 * scale_factor)
+	label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	add_child(label)
+	
+	# Set a temporary state so input knows where to return
+	current_state = MenuState.TITLE # Re-using title state for simple "any key" behavior
+	
+	cursor_rect.visible = false
 
 
 
@@ -678,8 +764,7 @@ func _show_view_size_screen() -> void:
 	preview.color = Color.BLACK
 	add_child(preview)
 	
-	# Instructions at bottom
-	var text_y_start = 160 * scale_factor
+	# Instructions at bottom - use native font size with label scaling
 	var instructions = [
 		"Use arrows to size",
 		"ENTER to accept",
@@ -690,11 +775,15 @@ func _show_view_size_screen() -> void:
 		var label = Label.new()
 		label.name = "ViewSizeInstr_%d" % i
 		label.text = instructions[i]
-		label.add_theme_font_size_override("font_size", int(11 * scale_factor))
+		# Use native font size (10) - required for glyphs to render
+		if FontManager.font1:
+			label.add_theme_font_override("font", FontManager.font1)
+		label.add_theme_font_size_override("font_size", 10) # NATIVE size
 		label.add_theme_color_override("font_color", COLOR_TEXT)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.position = Vector2(0, text_y_start + i * 12 * scale_factor)
-		label.size = Vector2(get_viewport().get_visible_rect().size.x, 15 * scale_factor)
+		label.position = Vector2(0, (160 + i * 12) * scale_factor)
+		label.size = Vector2(320, 15)
+		label.scale = Vector2(scale_factor, scale_factor)
 		add_child(label)
 	
 	_update_view_size_preview()

@@ -978,13 +978,11 @@ func _render_adlib_to_pcm(data: PackedByteArray, block: int, inst: PackedByteArr
 	var result = PackedByteArray()
 	
 	# OPL2 frequency calculation:
-	# The block value from Wolf3D header is raw octave (0-7)
+	# Each sound has its own block (octave) value stored in header
 	# Freq = F-Number * 49716 / (2^(20-Block))
-	# Since we only have the low byte of F-Number, we treat it as is
-	# Wolf3D uses block values typically 2-5 for sound effects
+	# Block ranges from 0-7, each step doubles the frequency
 	var octave = block & 7
-	if octave == 0:
-		octave = 4  # Default to middle octave if not set
+	print("  Block/octave for this sound: %d" % octave)
 	
 	var phase = 0.0
 	
@@ -996,16 +994,16 @@ func _render_adlib_to_pcm(data: PackedByteArray, block: int, inst: PackedByteArr
 			for s in range(int(SAMPLES_PER_TICK)):
 				result.append(128)  # 8-bit silence (unsigned)
 		else:
-			# Calculate frequency from F-Number
-			# F-Number is 10-bit (0-1023), we have low byte only
-			# Adjust multiplier to tune pitch (try 2, 3, or 4)
-			var f_number = freq_low * 0.5  # Tune this value for correct pitch
+			# Calculate frequency directly using OPL2 formula
+			# F-Number is what's stored in the data byte (0-255)
+			var f_number = float(freq_low)
 			
 			# OPL2 formula: Freq = F-Number * 49716 / (2^(20-Block))
+			# This gives the correct frequency based on each sound's octave
 			var freq = (f_number * 49716.0) / pow(2, 20 - octave)
 			
 			# Clamp frequency to audible range
-			freq = clamp(freq, 80.0, 8000.0)
+			freq = clamp(freq, 50.0, 10000.0)
 			
 			# Generate square wave samples for this tick
 			var phase_inc = freq / SAMPLE_RATE

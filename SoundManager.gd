@@ -112,10 +112,9 @@ func _load_sounds() -> void:
 			var full_path = sounds_path + file_name
 			var stream = _load_wav_file(full_path)
 			if stream:
-				# Extract sound ID from filename (DIGI_XXX.wav)
-				var id_str = file_name.replace("DIGI_", "").replace(".wav", "")
-				var sound_id = id_str.to_int()
-				sound_cache[sound_id] = stream
+				# Extract sound name from filename (e.g., HALTSND.wav -> HALTSND)
+				var sound_name = file_name.replace(".wav", "")
+				sound_cache[sound_name] = stream
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	
@@ -164,87 +163,79 @@ func _load_wav_file(path: String) -> AudioStreamWAV:
 	
 	return stream
 
-func play_sound(sound_id: int) -> void:
+# Play sound by name (primary method)
+func play_sfx(sound_name: String) -> void:
 	# Lazy load sounds on first play
 	if not sounds_loaded:
 		_load_sounds()
 	
-	if not sound_cache.has(sound_id):
-		return
+	if not sound_cache.has(sound_name):
+		# Try uppercase just in case
+		if not sound_cache.has(sound_name.to_upper()):
+			return
+		sound_name = sound_name.to_upper()
 	
 	# Find available player
 	for player in audio_players:
 		if not player.playing:
-			player.stream = sound_cache[sound_id]
+			player.stream = sound_cache[sound_name]
 			player.play()
 			return
 	
 	# All players busy - use first one (oldest sound)
-	audio_players[0].stream = sound_cache[sound_id]
+	audio_players[0].stream = sound_cache[sound_name]
 	audio_players[0].play()
 
-# Sound name to ID mapping for string-based lookups
-const SOUND_NAME_MAP = {
-	"HALTSND": SoundID.HALTSND,
-	"DOGBARKSND": SoundID.DOGBARKSND,
-	"DOGDEATHSND": SoundID.DOGDEATHSND,
-	"NAZIFIRESND": SoundID.NAZIFIRESND,
-	"DOGATTACKSND": SoundID.DOGBARKSND,  # Use bark for now
-	"SCHABORGSND": SoundID.SCHABORGSND,
-	"SCABORGSND": SoundID.SCHABORGSND,  # Alias with typo
-	"DEATHSCREAM1SND": SoundID.PLAYERDEATHSND,  # Reuse for now
-	"LEBENSND": SoundID.SCHABORGSND,  # SS death - use schabord sound
-	"NEINSOVASSND": SoundID.HALTSND,  # Officer death
-}
-
-func play_sfx(sound_name: String) -> void:
-	var sound_id = SOUND_NAME_MAP.get(sound_name, -1)
-	if sound_id >= 0:
-		play_sound(sound_id)
-	else:
-		# Try playing by direct ID if numeric
-		if sound_name.is_valid_int():
-			play_sound(sound_name.to_int())
+# Backward compatibility: play by numeric ID (deprecated, use play_sfx instead)
+func play_sound(sound_id: int) -> void:
+	# Try to find sound with DIGI_XXX format for old code
+	var digi_name = "DIGI_%03d" % sound_id
+	if sound_cache.has(digi_name):
+		play_sfx(digi_name)
+		return
+	# If no sounds loaded yet, just return silently
+	if not sounds_loaded:
+		_load_sounds()
 
 # Convenience functions for common sounds
 func play_pickup() -> void:
-	play_sound(SoundID.BONUS1SND)
+	play_sfx("SLURPIESND")  # Item pickup
 
 func play_key_pickup() -> void:
-	play_sound(SoundID.GETKEYSND)
+	play_sfx("SLURPIESND")  # Key pickup sound
 
 func play_ammo_pickup() -> void:
-	play_sound(SoundID.GETAMMOSND)
+	play_sfx("SLURPIESND")  # Ammo pickup sound
 
 func play_health_pickup() -> void:
-	play_sound(SoundID.HEALTH1SND)
+	play_sfx("SLURPIESND")  # Health pickup sound
 
 func play_door_open() -> void:
-	play_sound(SoundID.OPENDOORSND)
+	play_sfx("OPENDOORSND")
 
 func play_door_close() -> void:
-	play_sound(SoundID.CLOSEDOORSND)
+	play_sfx("CLOSEDOORSND")
 
 func play_pistol() -> void:
-	play_sound(SoundID.ATKPISTOLSND)
+	play_sfx("ATKPISTOLSND")
 
 func play_machinegun() -> void:
-	play_sound(SoundID.ATKMACHINEGUNSND)
+	play_sfx("ATKMACHINEGUNSND")
 
 func play_chaingun() -> void:
-	play_sound(SoundID.ATKGATLINGGUNSND)
+	play_sfx("ATKGATLINGSND")
 
 func play_knife() -> void:
-	play_sound(SoundID.ATKKNIFESND)
+	play_sfx("ATKPISTOLSND")  # No separate knife sound
 
 func play_hit_wall() -> void:
-	play_sound(SoundID.HITWALLSND)
+	play_sfx("HALTSND")  # Use halt as fallback
 
 func play_no_way() -> void:
-	play_sound(SoundID.NOWAYSND)
+	play_sfx("HALTSND")  # "No way" uses halt sound
 
 func play_player_death() -> void:
-	play_sound(SoundID.PLAYERDEATHSND)
+	play_sfx("DEATHSCREAM1SND")
 
 func reload_sounds() -> void:
 	# Call when changing games to reload sounds

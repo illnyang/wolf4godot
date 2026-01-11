@@ -496,19 +496,75 @@ func extract_vswap():
 		var sprite_data = vswap.get_buffer(length)
 		save_sprite(sprite_data, i - sprite_start)
 	
-	# Extract digitized sounds (chunks sound_start to end)
-	var num_sounds = num_chunks - sound_start
-	print("-> Extracting %d sounds..." % num_sounds)
-	for i in range(sound_start, num_chunks):
-		var offset = chunk_offsets[i]
-		var length = chunk_lengths[i]
+	# Extract digitized sounds using sound info page (last chunk)
+	# The last chunk contains (startpage, length) pairs for each logical sound
+	var sound_info_offset = chunk_offsets[num_chunks - 1]
+	var sound_info_length = chunk_lengths[num_chunks - 1]
+	
+	if sound_info_length == 0:
+		print("--> No sound info page found, extracting sounds individually...")
+		# Fallback to old method
+		var num_sounds_fallback = num_chunks - sound_start - 1
+		for i in range(sound_start, num_chunks - 1):
+			var offset = chunk_offsets[i]
+			var length = chunk_lengths[i]
+			if length == 0:
+				continue
+			vswap.seek(offset)
+			var sound_data = vswap.get_buffer(length)
+			save_sound_as_wav(sound_data, i - sound_start, "DIGI_%03d" % (i - sound_start))
+	else:
+		# Read sound info page to get (startpage, length) pairs
+		vswap.seek(sound_info_offset)
+		var sound_info_data = vswap.get_buffer(sound_info_length)
 		
-		if length == 0:
-			continue
+		# Each entry is 4 bytes: 2 bytes startpage + 2 bytes length
+		var num_digi = sound_info_length / 4
+		print("--> Sound info page found: %d digitized sounds" % num_digi)
 		
-		vswap.seek(offset)
-		var sound_data = vswap.get_buffer(length)
-		save_sound_as_wav(sound_data, i - sound_start)
+		for snd_idx in range(num_digi):
+			var info_offset = snd_idx * 4
+			if info_offset + 3 >= sound_info_data.size():
+				break
+			
+			var start_page = sound_info_data.decode_u16(info_offset)
+			var sound_length = sound_info_data.decode_u16(info_offset + 2)
+			
+			# startpage is relative to sound_start
+			var absolute_chunk = sound_start + start_page
+			
+			if absolute_chunk >= num_chunks - 1 or sound_length == 0:
+				continue
+			
+			# Collect data from all pages that make up this sound
+			var combined_data = PackedByteArray()
+			var remaining_length = sound_length
+			var current_chunk = absolute_chunk
+			
+			while remaining_length > 0 and current_chunk < num_chunks - 1:
+				var chunk_offset = chunk_offsets[current_chunk]
+				var chunk_length = chunk_lengths[current_chunk]
+				
+				if chunk_length == 0:
+					current_chunk += 1
+					continue
+				
+				vswap.seek(chunk_offset)
+				var bytes_to_read = mini(chunk_length, remaining_length)
+				var page_data = vswap.get_buffer(bytes_to_read)
+				combined_data.append_array(page_data)
+				
+				remaining_length -= bytes_to_read
+				current_chunk += 1
+			
+			# Get sound name
+			var sound_name = "DIGI_%03d" % snd_idx
+			if snd_idx < DIGI_SOUND_NAMES.size():
+				sound_name = DIGI_SOUND_NAMES[snd_idx]
+			
+			save_sound_as_wav(combined_data, snd_idx, sound_name)
+		
+		print("--> Extracted %d digitized sounds" % num_digi)
 	
 	vswap.close()
 	print("-> VSWAP extraction complete")
@@ -714,16 +770,18 @@ func tile_to_color(tile: int) -> Color:
 #-----------------------------------------------------
 # Sound Extraction - Convert raw PCM to WAV
 #-----------------------------------------------------
-func save_sound_as_wav(data: PackedByteArray, sound_id: int) -> void:
+func save_sound_as_wav(data: PackedByteArray, sound_id: int, sound_name: String = "") -> void:
 	if data.size() == 0:
 		return
 	
-	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, ~7000 Hz
-	const SAMPLE_RATE = 7000
+	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, 7042 Hz (original rate)
+	const SAMPLE_RATE = 7042
 	const BITS_PER_SAMPLE = 8
 	const NUM_CHANNELS = 1
 	
-	var filename = "%ssounds/DIGI_%03d.wav" % [current_output_path, sound_id]
+	# Use provided name or fall back to numbered format
+	var name_part = sound_name if sound_name != "" else "DIGI_%03d" % sound_id
+	var filename = "%ssounds/%s.wav" % [current_output_path, name_part]
 	var file = FileAccess.open(filename, FileAccess.WRITE)
 	if file == null:
 		push_error("Cannot create sound file: " + filename)
@@ -775,6 +833,21 @@ const MUSIC_NAMES = [
 	"SALUTE", "SEARCHN", "SUSPENSE", "VICTORS", "WONDERIN",
 	"FUNKYOU", "ENDLEVEL", "GOINGAFT", "PREGNANT", "ULTIMATE",
 	"NAZI_RAP", "ZEROHOUR", "TWELFTH", "ROSTER", "URAHERO", "VICMARCH", "PACMAN"
+]
+
+# Wolf3D digitized sound names (matching VSWAP order from your screenshot)
+# These correspond to the sounds in the sound info page
+const DIGI_SOUND_NAMES = [
+	"HALTSND", "DOGBARKSND", "CLOSEDOORSND", "OPENDOORSND", "ATKMACHINEGUNSND",
+	"ATKPISTOLSND", "ATKGATLINGSND", "SCHUTZADSND", "GUTENTAGSND", "MUTTISND",
+	"BOSSFIRESND", "SSFIRESND", "DEATHSCREAM1SND", "DEATHSCREAM2SND", "TAKEDAMAGESND",
+	"PUSHWALLSND", "DOGDEATHSND", "AHHHGSND", "DIESND", "EVASND",
+	"LEBENSND", "NAZIFIRESND", "SLURPIESND", "TOT_HUNDSND", "MEINGOTTSND",
+	"SCHABBSHASND", "HITLERHASND", "SPIONSND", "NEINSOVASSND", "DOGATTACKSND",
+	"LEVELDONESND", "MECHSTEPSND", "YEAHSND", "SCHEISTSND", "DEATHSCREAM4SND",
+	"DEATHSCREAM5SND", "DONNERSND", "EINESND", "ERLAUBENSND", "DEATHSCREAM6SND",
+	"DEATHSCREAM7SND", "DEATHSCREAM8SND", "DEATHSCREAM9SND", "KEINSND", "MEINSND",
+	"ROSESND"
 ]
 
 func extract_audio() -> void:

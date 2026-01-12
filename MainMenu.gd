@@ -802,7 +802,6 @@ func _handle_main_menu_select() -> void:
 		9:  # Quit
 			get_tree().quit()
 
-
 func _handle_cancel() -> void:
 	match current_state:
 		MenuState.MAIN:
@@ -830,7 +829,6 @@ func _handle_cancel() -> void:
 			_show_main_menu()
 		MenuState.READ_THIS:
 			_show_main_menu()
-
 
 func _show_high_scores() -> void:
 	_clear_menu_items()
@@ -861,7 +859,6 @@ func _show_high_scores() -> void:
 	cursor_rect.visible = false
 
 
-# ============== SOUND MENU ==============
 func _show_sound_menu() -> void:
 	current_state = MenuState.SOUND
 	sound_menu_index = 0
@@ -913,7 +910,6 @@ func _show_sound_menu() -> void:
 	_update_cursor()
 
 
-# ============== CONTROL MENU ==============
 func _show_control_menu() -> void:
 	current_state = MenuState.CONTROL
 	control_menu_index = 0
@@ -975,7 +971,6 @@ func _show_control_menu() -> void:
 	_update_cursor()
 
 
-# ============== READ THIS ==============
 func _show_read_this() -> void:
 	current_state = MenuState.READ_THIS
 	read_this_page = 0
@@ -1277,7 +1272,6 @@ func _handle_right() -> void:
 		MenuState.READ_THIS:
 			read_this_page = min(1, read_this_page + 1)
 			_show_read_this()
-
 
 func _start_game() -> void:
 	var actual_map_index = selected_episode * 10 + map_index

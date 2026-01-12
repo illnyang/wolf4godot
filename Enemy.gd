@@ -538,10 +538,16 @@ func _check_line() -> bool:
 		if tile_id >= 1 and tile_id <= 53:
 			return false
 		
-		# Doors block sight when closed (90-101 are doors)
+		# Doors block sight/shots only if closed or barely open (90-101 are doors)
 		if tile_id >= 90 and tile_id <= 101:
 			var door = _find_door_at(x, y)
-			if door == null or not door.is_open():
+			if door:
+				# Bullets can pass through doors that are 30%+ open
+				var open_ratio = door.get("open_ratio")
+				if open_ratio != null and open_ratio < 0.3:
+					return false
+			elif door == null:
+				# Door tile but no door object found - assume closed
 				return false
 		
 		# Safety: if we've gone too far, break

@@ -348,12 +348,7 @@ func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
 	var range = 1.5 if weapon == GameState.Weapon.KNIFE else 100.0
 	var to = from + forward * range
 	
-	# First check walls and doors using tile-based line of sight
-	if not _check_shot_line(from, to):
-		print("Shot blocked by wall or door!")
-		return
-	
-	# Create raycast query that hits collision layer 2 (enemies)
+	# First do physics raycast to find what we actually hit
 	var query = PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = 2  # Layer 2 = enemies (as set in Enemy.tscn)
 	query.collide_with_areas = true
@@ -361,20 +356,24 @@ func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
 	var result = space_state.intersect_ray(query)
 	
 	if result and result.collider:
+		# We hit something - now check if line to HIT POSITION is clear
+		var hit_position = result.position
+		if not _check_shot_line(from, hit_position):
+			return
+		
 		# Check if it's an enemy
 		if result.collider.is_in_group("enemies"):
 			# Apply damage to the enemy
 			if result.collider.has_method("take_damage"):
 				result.collider.take_damage(damage)
-				print("Hit enemy! Damage: %d" % damage)
-		else:
-			print("Hit: ", result.collider.name)
 	else:
-		print("Missed!")
+		# Didn't hit anything with physics raycast - check if path is clear anyway
+		if not _check_shot_line(from, to):
+			return
 
 func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 	"""Check if shot line is blocked by walls or closed doors"""
-	if not grid:
+	if not grid or not map_loader:
 		return true  # No grid = no collision check
 	
 	# Bresenham's line algorithm to check tiles between from and to
@@ -399,20 +398,33 @@ func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 				return false
 			
 			var tile_id = grid.tile_at(x, z)
+			var thing_id = grid.thing_at(x, z)
+			var is_air = map_loader.is_air(x, z)
 			
-			# Walls block shots (1-53) - check if it's NOT a moved pushwall
-			if tile_id >= 1 and tile_id <= 53:
-				# If there's a pushwall at this position, check if it's still here
-				var pushwall = _find_pushwall_at_tile(x, z)
-				if not pushwall:
-					# Wall with no pushwall = solid wall, blocks shot
+			# Use map_loader.is_air() to check if this tile is solid
+			if not is_air:
+				# This is a solid wall - but check if pushwall is still there
+				if thing_id == 98:
+					# Pushwall location - check if it moved away
+					var pushwall = _find_pushwall_at_tile(x, z)
+					if not pushwall:
+						# Pushwall moved away, don't block
+						pass
+					else:
+						# Pushwall is here, blocks shot
+						return false
+				else:
+					# Regular solid wall
 					return false
 			
-			# Closed doors block shots (90-101)
+			# Check for doors separately
 			if tile_id >= 90 and tile_id <= 101:
 				var door = _find_door_at_tile(x, z)
-				if door and not door.is_open():
-					return false
+				if door:
+					# Check door's open_ratio - bullets can pass through doors that are 30%+ open
+					var open_ratio = door.get("open_ratio")
+					if open_ratio != null and open_ratio < 0.3:
+						return false
 		
 		# Reached target
 		if x == x1 and z == z1:

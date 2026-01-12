@@ -81,14 +81,6 @@ class L2Utils:
 	# Original has 'block' flag in statinfo[] array for solid decorations
 	static func is_blocking_static(id: int) -> bool:
 		var static_idx = id - 23
-		# Blocking statics from original statinfo (WL_ACT1.C):
-		# 0=puddle, 1=barrel, 2=table/chairs, 3=floor_lamp, 4=chandelier, 5=hanged_man
-		# 7=sink, 8=plant, 9=urn, 10=bare_table, 11=ceiling_light, 12=kitchen_stuff
-		# 13=suit_of_armor, 14=hanging_cage, 15=skeleton_flat, 16=sink, 17=plant_pot
-		# 18=bones, 19=blue_key, 22=bones, 23=well, 34=well_empty
-		# Blocking: 1(barrel), 2(table), 3(lamp), 7(sink), 8(plant), 9(urn), 10(table),
-		# 12(kitchen), 13(armor), 16(sink), 17(pot), 23(well), 34(well), 35(pool),
-		# 36(vines), 37(brown_column), 38(green_barrel), 39(plant), 40(skeleton)
 		return static_idx in [1, 2, 3, 7, 8, 9, 10, 12, 13, 16, 17, 23, 34, 35, 36, 37, 38, 39, 40]
 
 	# Enemy types enum

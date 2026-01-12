@@ -2,7 +2,9 @@
 # Wolf3D Level Completion Screen - Authentic 1:1 recreation
 extends CanvasLayer
 
-const PICS_PATH = "res://assets/vga/pics/"
+# Path for VGA fixed-image assets (loaded from user data folder)
+var pics_path: String:
+	get: return GameState.get_pics_path()
 
 # Original Wolf3D resolution
 const ORIG_WIDTH = 320
@@ -410,8 +412,8 @@ func _write(gx: int, gy: int, text: String) -> void:
 			cx += (8 if ch == ":" else 16) * scale_factor
 
 func _load_pic(f: String) -> Texture2D:
-	var p = PICS_PATH + f
-	var t = load(p) as Texture2D
-	if t: return t
+	var p = pics_path + f
 	var i = Image.load_from_file(p)
-	return ImageTexture.create_from_image(i) if i else null
+	if i: return ImageTexture.create_from_image(i)
+	push_error("LevelComplete: Failed to load " + p)
+	return null

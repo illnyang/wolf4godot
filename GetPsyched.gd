@@ -2,7 +2,9 @@
 # Wolf3D "Get Psyched!" loading screen with progress bar
 extends CanvasLayer
 
-const PICS_PATH = "res://assets/vga/pics/"
+# Path for VGA fixed-image assets (loaded from user data folder)
+var pics_path: String:
+	get: return GameState.get_pics_path()
 
 var scale_factor: float = 2.0
 var progress_bar: ColorRect
@@ -57,14 +59,11 @@ func _create_ui() -> void:
 		add_child(progress_bar)
 
 func _load_pic(filename: String) -> Texture2D:
-	var path = PICS_PATH + filename
-	var texture = load(path) as Texture2D
-	if texture:
-		return texture
+	var path = pics_path + filename
 	var image = Image.load_from_file(path)
 	if image:
 		return ImageTexture.create_from_image(image)
-	push_warning("GetPsyched: Could not load " + filename)
+	push_error("GetPsyched: Could not load " + path)
 	return null
 
 func _simulate_loading() -> void:

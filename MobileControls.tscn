@@ -1,0 +1,77 @@
+[gd_scene load_steps=7 format=3 uid="uid://b8yqx5j2v5n8r"]
+
+[ext_resource type="Script" path="res://MobileControls.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://ui/joystick_base.jpg" id="2_base"]
+[ext_resource type="Texture2D" path="res://ui/joystick_tip.jpg" id="3_tip"]
+[ext_resource type="Texture2D" path="res://ui/icon_fire.jpg" id="4_fire"]
+[ext_resource type="Texture2D" path="res://ui/icon_door.jpg" id="5_door"]
+[ext_resource type="Texture2D" path="res://ui/icon_menu.jpg" id="6_menu"]
+
+[node name="MobileControls" type="CanvasLayer"]
+script = ExtResource("1_script")
+
+[node name="Joystick" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 50.0
+offset_top = -250.0
+offset_right = 250.0
+offset_bottom = -50.0
+grow_vertical = 0
+
+[node name="Base" type="TextureRect" parent="Joystick"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -100.0
+offset_top = -100.0
+offset_right = 100.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_base")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Tip" type="TextureRect" parent="Joystick"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -40.0
+offset_top = -40.0
+offset_right = 40.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_tip")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ShootButton" type="TouchScreenButton" parent="."]
+position = Vector2(950, 420)
+scale = Vector2(0.3, 0.3)
+texture_normal = ExtResource("4_fire")
+action = "shoot"
+visibility_mode = 1
+
+[node name="InteractButton" type="TouchScreenButton" parent="."]
+position = Vector2(820, 480)
+scale = Vector2(0.2, 0.2)
+texture_normal = ExtResource("5_door")
+action = "action"
+visibility_mode = 1
+
+[node name="MenuButton" type="TouchScreenButton" parent="."]
+position = Vector2(1080, 50)
+scale = Vector2(0.15, 0.15)
+texture_normal = ExtResource("6_menu")
+action = "ui_cancel"
+visibility_mode = 1

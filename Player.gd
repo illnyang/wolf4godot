@@ -5,7 +5,8 @@ extends CharacterBody3D
 @export var radius: float = 0.28
 @export var skin: float = 0.001
 @onready var weapon_anim: AnimatedSprite2D = $CanvasLayer/WeponUI/AnimatedSprite2D
-@export var sprite_texture_folder: String = "user://assets/wolf3d/sprites/"
+@export var sprite_texture_folder: String:
+	get: return GameState.get_sprites_path()
 @onready var weapon_manager = $CanvasLayer/WeaponUI/AnimatedSprite2D
 const SPEED := 7.0
 const TURN_SPEED := 1.5

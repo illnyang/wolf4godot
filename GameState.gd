@@ -20,12 +20,43 @@ var episode: int = 0
 var selected_map_path: String = "user://assets/wolf3d/maps/json/00_Tunnels 1.json"
 var selected_game: String = "wolf3d"
 
+func get_asset_path() -> String:
+	return "user://assets/" + selected_game + "/"
+
+func get_pics_path() -> String:
+	return get_asset_path() + "pics/"
+
+func get_walls_path() -> String:
+	return get_asset_path() + "walls/"
+
+func get_sprites_path() -> String:
+	return get_asset_path() + "sprites/"
+
+func get_sounds_path() -> String:
+	return get_asset_path() + "sounds/"
+
+func get_music_path() -> String:
+	return get_asset_path() + "music/"
+
+func get_fonts_path() -> String:
+	return get_asset_path() + "fonts/"
+
 # Difficulty system
 enum Difficulty { BABY, EASY, NORMAL, HARD }
 var difficulty: Difficulty = Difficulty.NORMAL
 
 var in_game: bool = false
 var menu_from_game: bool = false
+var skip_to_title_loop: bool = false  # When true, TitleScreen skips signon/PG13 and goes directly to title loop
+
+# Sound/Music settings
+var sound_enabled: bool = true
+var music_enabled: bool = true
+
+# Control settings
+var mouse_sensitivity: int = 5  # 1-10 scale
+var always_run: bool = false
+var mouse_look: bool = true
 
 var saved_game_state: Dictionary = {}
 

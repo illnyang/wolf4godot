@@ -19,9 +19,7 @@ func _ready() -> void:
 	SoundManager.play_sfx("DEATHSCREAM1SND")
 
 func _load_assets() -> void:
-	var game_id = GameState.selected_game if GameState.selected_game != "" else "wolf3d"
-	var path = "user://assets/%s/pics/087_HIGHSCORESPIC.png" % game_id
-	
+	var path = GameState.get_pics_path() + "087_HIGHSCORESPIC.png"
 	high_score_texture = _load_texture(path)
 
 func _load_texture(path: String) -> Texture2D:
@@ -30,9 +28,8 @@ func _load_texture(path: String) -> Texture2D:
 		if image:
 			return ImageTexture.create_from_image(image)
 	
-	# Fallback to res://
-	var fallback = "res://assets/vga/pics/087_HIGHSCORESPIC.png"
-	return load(fallback)
+	push_error("GameOver: Failed to load texture: " + path)
+	return null
 
 func _create_ui() -> void:
 	# Dark teal background (matching original Wolf3D view border/vga background)

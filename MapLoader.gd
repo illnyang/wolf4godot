@@ -253,7 +253,7 @@ class MapGrid:
 	func thing_at(x: int, y: int) -> int:
 		return _thingGrid[y * height() + x]
 
-@export var json_path : String = "user://assets/wolf3d/maps/json/00_Wolf1 Map1.json"  # Fallback only
+@export var json_path : String = ""  # Set by GameState at runtime
 var grid: MapGrid
 
 # NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
@@ -262,6 +262,9 @@ var grid: MapGrid
 var root_node: Node3D
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+		
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	

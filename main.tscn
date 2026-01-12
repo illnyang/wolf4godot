@@ -1,9 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://ddxqf62oqs8cm"]
+[gd_scene load_steps=4 format=3 uid="uid://ddxqf62oqs8cm"]
 
 [ext_resource type="Script" uid="uid://ccpo1cd111mrl" path="res://main.gd" id="1_0xm2m"]
-[ext_resource type="Texture2D" uid="uid://cibn3ius4c6r4" path="res://assets/signon/signon.png" id="2_h2yge"]
-[ext_resource type="Script" uid="uid://by5kqgfy3qk1v" path="res://extract_wolf3d.gd" id="5_lquwl"]
-[ext_resource type="Script" uid="uid://dayqws4vsa8yq" path="res://MainMenu.gd" id="6_menu"]
+[ext_resource type="Script" uid="uid://drfcec5w0y64o" path="res://extract_wolf3d.gd" id="5_lquwl"]
+[ext_resource type="Script" uid="uid://cvfsa0uw735ue" path="res://MainMenu.gd" id="6_menu"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -11,16 +10,6 @@ anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("1_0xm2m")
-
-[node name="StartScreen" type="CanvasLayer" parent="."]
-
-[node name="TextureRect" type="TextureRect" parent="StartScreen"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("2_h2yge")
 
 [node name="MainMenu" type="CanvasLayer" parent="."]
 

@@ -1,7 +1,9 @@
 # Original C code logic from WL_AGENT.C
 extends CanvasLayer
 
-const PICS_PATH = "res://assets/vga/pics/"
+# Path for VGA fixed-image assets (loaded from user data folder)
+var pics_path: String:
+	get: return GameState.get_pics_path()
 
 # Original Wolf3D status bar positions (320x200 VGA resolution)
 # These are character/tile positions, each tile is 8x8 pixels in original
@@ -101,7 +103,7 @@ func _load_assets() -> void:
 	key_textures.append(_load_pic("094_SILVERKEYPIC.png"))
 
 func _load_pic(filename: String) -> Texture2D:
-	var path = PICS_PATH + filename
+	var path = pics_path + filename
 	# For res:// paths, try using load() first (works with imported resources)
 	var texture = load(path) as Texture2D
 	if texture:

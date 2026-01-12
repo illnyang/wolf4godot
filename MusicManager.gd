@@ -6,7 +6,8 @@ var current_track: String = ""
 var music_cache: Dictionary = {}
 
 # Track name to file mapping
-const TITLE_MUSIC = "INTROCW3"  # Wolf3D title theme
+const TITLE_MUSIC = "INTROCW3"  # Wolf3D title theme (intro song)
+const MENU_MUSIC = "WONDERIN"   # Wolf3D menu music
 const LEVEL_MUSIC = ["GETTHEM", "SEARCHN", "POW", "SUSPENSE", "WARMARCH", 
 	"CORNER", "NAZI_NOR", "NAZI_OMI", "HEADACHE", "DUNGEON"]
 
@@ -44,7 +45,7 @@ func _load_music(track_name: String) -> AudioStream:
 		return music_cache[track_name]
 	
 	# Try loading from extracted music folder
-	var music_path = "user://assets/%s/music/%s.wav" % [GameState.selected_game, track_name]
+	var music_path = GameState.get_music_path() + "%s.wav" % track_name
 	
 	var stream = _load_wav_file(music_path)
 	if stream:

@@ -80,10 +80,7 @@ func _physics_process(delta: float) -> void:
 		move_dir -= cam.global_transform.basis.z
 	if Input.is_action_pressed("move_backward"): 
 		move_dir += cam.global_transform.basis.z
-	if Input.is_action_pressed("ui_right"): 
-		move_dir += cam.global_transform.basis.x
-	if Input.is_action_pressed("ui_left"): 
-		move_dir -= cam.global_transform.basis.x
+
 	
 	move_dir.y = 0
 	if move_dir.length_squared() > 0.000001:

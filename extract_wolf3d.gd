@@ -120,10 +120,16 @@ func _detect_available_games() -> void:
 	available_games.clear()
 	for game_type in game_configs:
 		var config = game_configs[game_type]
-		var vswap_path = config.data_path + "VSWAP" + config.extension
-		if FileAccess.file_exists(vswap_path):
-			print("Found %s data files" % config.name.to_upper())
-			available_games.append(game_type)
+		var potential_paths = GameState.get_external_data_paths(config.name)
+		
+		for path in potential_paths:
+			var vswap_path = path.path_join("VSWAP" + config.extension)
+			if FileAccess.file_exists(vswap_path):
+				print("Found %s data files in: %s" % [config.name.to_upper(), path])
+				# Update current path in config for extraction
+				config.data_path = path
+				available_games.append(game_type)
+				break
 	
 	if available_games.is_empty():
 		push_warning("No game data found! Please add Wolf3D or SOD files.")

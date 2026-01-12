@@ -23,6 +23,23 @@ var selected_game: String = "wolf3d"
 func get_asset_path() -> String:
 	return "user://assets/" + selected_game + "/"
 
+# Returns potential locations for game data files
+func get_external_data_paths(game_name: String) -> Array[String]:
+	var paths: Array[String] = []
+	# 1. Bundled in project (res://)
+	paths.append("res://data/" + game_name + "/")
+	# 2. User data folder (user://)
+	paths.append("user://data/" + game_name + "/")
+	# 3. Next to the executable (data/ next to EXE)
+	if OS.has_feature("template"): # If exported
+		var exe_dir = OS.get_executable_path().get_base_dir()
+		paths.append(exe_dir.path_join("data/" + game_name + "/"))
+	else: # In editor
+		var project_dir = ProjectSettings.globalize_path("res://")
+		paths.append(project_dir.path_join("data/" + game_name + "/"))
+	
+	return paths
+
 func get_pics_path() -> String:
 	return get_asset_path() + "pics/"
 

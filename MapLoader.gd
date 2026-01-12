@@ -76,6 +76,20 @@ class L2Utils:
 
 	static func get_static_idx(id: int) -> int:
 		return id - 23
+	
+	# Check if static object blocks movement (based on original Wolf3D statinfo)
+	# Original has 'block' flag in statinfo[] array for solid decorations
+	static func is_blocking_static(id: int) -> bool:
+		var static_idx = id - 23
+		# Blocking statics from original statinfo (WL_ACT1.C):
+		# 0=puddle, 1=barrel, 2=table/chairs, 3=floor_lamp, 4=chandelier, 5=hanged_man
+		# 7=sink, 8=plant, 9=urn, 10=bare_table, 11=ceiling_light, 12=kitchen_stuff
+		# 13=suit_of_armor, 14=hanging_cage, 15=skeleton_flat, 16=sink, 17=plant_pot
+		# 18=bones, 19=blue_key, 22=bones, 23=well, 34=well_empty
+		# Blocking: 1(barrel), 2(table), 3(lamp), 7(sink), 8(plant), 9(urn), 10(table),
+		# 12(kitchen), 13(armor), 16(sink), 17(pot), 23(well), 34(well), 35(pool),
+		# 36(vines), 37(brown_column), 38(green_barrel), 39(plant), 40(skeleton)
+		return static_idx in [1, 2, 3, 7, 8, 9, 10, 12, 13, 16, 17, 23, 34, 35, 36, 37, 38, 39, 40]
 
 	# Enemy types enum
 	enum EnemyType { NONE, GUARD, OFFICER, SS, DOG, MUTANT, BOSS }
@@ -686,8 +700,28 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 					sprite.transparent = true
 					sprite.double_sided = false
 					sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-
-					root_node.add_child(sprite)
+					
+					# Add collision for blocking statics (tables, lamps, columns, etc)
+					if L2Utils.is_blocking_static(id):
+						var static_body = StaticBody3D.new()
+						static_body.name = "StaticObject_%d_%d" % [x, y]
+						static_body.position = Vector3(x + 0.5, 0, y + 0.5)
+						static_body.add_to_group("static_objects")
+						
+						var collision = CollisionShape3D.new()
+						var shape = CylinderShape3D.new()
+						shape.radius = 0.3  # Smaller than full tile
+						shape.height = 1.0
+						collision.shape = shape
+						static_body.add_child(collision)
+						
+						# Add sprite to static body
+						sprite.position = Vector3.ZERO
+						static_body.add_child(sprite)
+						root_node.add_child(static_body)
+					else:
+						# Non-blocking decoration - just add sprite
+						root_node.add_child(sprite)
 			
 			# Spawn enemies
 			elif L2Utils.is_enemy(id):

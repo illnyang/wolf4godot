@@ -48,6 +48,15 @@ var difficulty: Difficulty = Difficulty.NORMAL
 var in_game: bool = false
 var menu_from_game: bool = false
 
+# Sound/Music settings
+var sound_enabled: bool = true
+var music_enabled: bool = true
+
+# Control settings
+var mouse_sensitivity: int = 5  # 1-10 scale
+var always_run: bool = false
+var mouse_look: bool = true
+
 var saved_game_state: Dictionary = {}
 
 # View size system (original Wolf3D behavior)

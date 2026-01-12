@@ -108,7 +108,9 @@ func _ready():
 			print("Extracting %s assets..." % config.name)
 			_extract_game(game_type)
 		else:
-			print("%s assets already extracted, skipping..." % config.name)
+			print("%s assets already extracted, checking for new assets..." % config.name)
+			# Still try to extract signon and demos if they don't exist
+			_extract_missing_assets(game_type)
 	
 	print("=== Extraction Complete ===")
 	extraction_complete = true
@@ -149,12 +151,42 @@ func _extract_game(game_type: GameType) -> void:
 	DirAccess.make_dir_recursive_absolute(current_output_path + "music")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "pics")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "fonts")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "demos")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "signon")
 	
 	extract_maps()
 	extract_vswap()
 	extract_audio()  # Extract IMF music from AUDIOT
 	extract_adlib_sounds()  # Extract AdLib beep sounds from AUDIOT
 	extract_vgagraph()  # Extract pics from VGAGRAPH
+	extract_demos()    # Extract demo data from VGAGRAPH
+	extract_signon()   # Extract signon screen from CPP file
+
+
+func _extract_missing_assets(game_type: GameType) -> void:
+	# Extract signon and demos even if other assets already exist
+	var config = game_configs[game_type]
+	current_data_path = config.data_path
+	current_extension = config.extension
+	current_output_path = config.output
+	
+	# Create directories if they don't exist
+	DirAccess.make_dir_recursive_absolute(current_output_path + "demos")
+	DirAccess.make_dir_recursive_absolute(current_output_path + "signon")
+	
+	# Check if signon exists
+	var signon_file = current_output_path + "signon/SIGNON.png"
+	if not FileAccess.file_exists(signon_file):
+		print("   Extracting missing signon...")
+		extract_signon()
+	else:
+		print("   Signon already extracted")
+	
+	# Check if demos exist
+	var demo_file = current_output_path + "demos/DEMO0.bin"
+	if not FileAccess.file_exists(demo_file):
+		print("   Extracting missing demos...")
+		extract_demos()
 	
 #func already_extracted() -> bool:
 	#var map_dir = DirAccess.open(output_path + "maps/json/")
@@ -1580,3 +1612,184 @@ func _save_font_atlas(data: PackedByteArray, font_id: int) -> void:
 		json_file.close()
 	
 	print("   Extracted %s (%dpx high) to fonts/" % [font_name, height])
+
+
+#-----------------------------------------------------
+# Demo Extraction from VGAGRAPH
+# Demos are at chunks T_DEMO0 (139) through T_DEMO3 (142) for WL6
+#-----------------------------------------------------
+const DEMO_CHUNKS_WL6 = [139, 140, 141, 142]  # T_DEMO0-T_DEMO3 for Wolf3D
+const DEMO_CHUNKS_SOD = [164, 165, 166, 167]  # T_DEMO0-T_DEMO3 for SOD
+
+func extract_demos() -> void:
+	print("Extracting demos from VGAGRAPH...")
+	
+	var vgadict_path = current_data_path + "VGADICT" + current_extension
+	var vgahead_path = current_data_path + "VGAHEAD" + current_extension
+	var vgagraph_path = current_data_path + "VGAGRAPH" + current_extension
+	
+	# Open VGADICT
+	var vgadict = FileAccess.open(vgadict_path, FileAccess.READ)
+	if vgadict == null:
+		print("-> No VGADICT found, skipping demo extraction")
+		return
+	
+	# Read Huffman table
+	var huffman_table: Array = []
+	for i in range(255):
+		var bit0 = vgadict.get_16()
+		var bit1 = vgadict.get_16()
+		huffman_table.append([bit0, bit1])
+	vgadict.close()
+	
+	# Open VGAHEAD
+	var vgahead = FileAccess.open(vgahead_path, FileAccess.READ)
+	if vgahead == null:
+		print("-> No VGAHEAD found, skipping demo extraction")
+		return
+	
+	# Read chunk offsets (3 bytes each)
+	var offsets: Array[int] = []
+	while vgahead.get_position() < vgahead.get_length():
+		var b0 = vgahead.get_8()
+		var b1 = vgahead.get_8()
+		var b2 = vgahead.get_8()
+		var offset = b0 | (b1 << 8) | (b2 << 16)
+		if offset == 0xFFFFFF:
+			offset = -1  # Sparse marker
+		offsets.append(offset)
+	vgahead.close()
+	
+	# Open VGAGRAPH
+	var vgagraph = FileAccess.open(vgagraph_path, FileAccess.READ)
+	if vgagraph == null:
+		print("-> No VGAGRAPH found, skipping demo extraction")
+		return
+	
+	# Determine which demo chunks to use
+	var demo_chunks = DEMO_CHUNKS_WL6
+	if current_extension == ".SOD":
+		demo_chunks = DEMO_CHUNKS_SOD
+	
+	var extracted = 0
+	for i in range(demo_chunks.size()):
+		var chunk_idx = demo_chunks[i]
+		if chunk_idx >= offsets.size() - 1:
+			continue
+		
+		var offset = offsets[chunk_idx]
+		if offset < 0:
+			continue
+		
+		# Find next valid offset
+		var j = chunk_idx + 1
+		while j < offsets.size() and offsets[j] < 0:
+			j += 1
+		if j >= offsets.size():
+			continue
+		var next_offset = offsets[j]
+		
+		var compressed_size = next_offset - offset
+		if compressed_size <= 4:
+			continue
+		
+		# Read and decompress
+		vgagraph.seek(offset)
+		var expanded_len = vgagraph.get_32()
+		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
+		
+		var data = _huffman_expand(compressed_data, expanded_len, huffman_table)
+		if data.size() == 0:
+			continue
+		
+		# Save demo data as binary file
+		var demo_path = current_output_path + "demos/DEMO%d.bin" % i
+		var file = FileAccess.open(demo_path, FileAccess.WRITE)
+		if file:
+			file.store_buffer(data)
+			file.close()
+			extracted += 1
+			print("   Extracted DEMO%d (%d bytes)" % [i, data.size()])
+	
+	vgagraph.close()
+	print("-> Extracted %d demos" % extracted)
+
+
+#-----------------------------------------------------
+# Signon Screen Extraction from signon.cpp file
+# The signon screen is 320x200 VGA data in C array format
+#-----------------------------------------------------
+func extract_signon() -> void:
+	print("Extracting signon screen...")
+	
+	# Get the project root and look in sibling directories
+	# globalize_path gives us "C:/Users/.../wolfgodot_branch/wolfgodot/"
+	# We need to go up to "wolfgodot_branch" to find WOLF-code
+	var project_path = ProjectSettings.globalize_path("res://")
+	# Remove trailing slash if present, then get parent directory
+	if project_path.ends_with("/"):
+		project_path = project_path.left(project_path.length() - 1)
+	var parent_path = project_path.get_base_dir()  # Now goes from wolfgodot to wolfgodot_branch
+	
+	print("   Project path: %s" % project_path)
+	print("   Parent path: %s" % parent_path)
+	
+	# Try to find signon.cpp which contains the VGA data as a C array
+	var cpp_paths = [
+		parent_path + "/WOLF-code/Signon/signon.cpp",
+		parent_path + "/wolf3d-master/WOLFSRC/signon.cpp"
+	]
+	
+	var cpp_file: FileAccess = null
+	var found_path = ""
+	for path in cpp_paths:
+		print("   Trying: %s" % path)
+		cpp_file = FileAccess.open(path, FileAccess.READ)
+		if cpp_file != null:
+			found_path = path
+			break
+	
+	if cpp_file == null:
+		print("-> No signon.cpp found, skipping signon extraction")
+		return
+	
+	print("   Found signon at: %s" % found_path)
+	
+	# Read the C file and parse the byte array
+	var content = cpp_file.get_as_text()
+	cpp_file.close()
+	
+	# Parse hex values from the C array format: 0x29,0x29,...
+	var vga_data = PackedByteArray()
+	var regex = RegEx.new()
+	regex.compile("0x([0-9A-Fa-f]{2})")
+	
+	var results = regex.search_all(content)
+	for result in results:
+		var hex_str = result.get_string(1)
+		var byte_val = ("0x" + hex_str).hex_to_int()
+		vga_data.append(byte_val)
+		if vga_data.size() >= 64000:  # 320 * 200
+			break
+	
+	print("   Parsed %d bytes from signon.cpp" % vga_data.size())
+	
+	if vga_data.size() < 64000:
+		print("-> Insufficient data in signon.cpp (got %d bytes, need 64000)" % vga_data.size())
+		return
+	
+	# Convert VGA data to image (linear format, not planar)
+	var img = Image.create(320, 200, false, Image.FORMAT_RGBA8)
+	for y in range(200):
+		for x in range(320):
+			var idx = y * 320 + x
+			if idx < vga_data.size():
+				var pal_idx = vga_data[idx]
+				if pal_idx < WOLF_PALETTE.size():
+					var color = WOLF_PALETTE[pal_idx]
+					img.set_pixel(x, y, Color8(color[0], color[1], color[2], 255))
+	
+	# Save as PNG
+	var signon_path = current_output_path + "signon/SIGNON.png"
+	img.save_png(signon_path)
+	print("-> Extracted signon screen to signon/SIGNON.png")

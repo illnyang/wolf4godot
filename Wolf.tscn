@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://bsh6818j46oyw" path="res://MapLoader.gd" id="3_en2fo"]
 [ext_resource type="Script" uid="uid://dpj3m032wmn7y" path="res://SoundPlayer.gd" id="3_x42b1"]
 [ext_resource type="Script" uid="uid://b1nvakt47yiie" path="res://HUD.gd" id="4_x42b1"]
-[ext_resource type="Script" path="res://GameViewport.gd" id="5_gvscript"]
+[ext_resource type="Script" uid="uid://wjnh28ial4un" path="res://GameViewport.gd" id="5_gvscript"]
 
 [sub_resource type="World3D" id="World3D_game"]
 

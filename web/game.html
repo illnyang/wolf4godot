@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play WolfGodot | Wolfenstein 3D in Browser</title>
+  <meta name="description" content="Play WolfGodot - a faithful recreation of Wolfenstein 3D - directly in your browser.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blood-red: #c41e3a;
+      --blood-glow: #ff3355;
+      --dark-bg: #0a0a0f;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Orbitron', sans-serif;
+      background: var(--dark-bg);
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      background: rgba(0, 0, 0, 0.5);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--blood-glow);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logo:hover {
+      color: var(--blood-red);
+    }
+
+    .logo svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .control-hint {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .key {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+    }
+
+    /* Game container */
+    .game-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: 
+        radial-gradient(ellipse at center, rgba(196, 30, 58, 0.1) 0%, transparent 70%),
+        var(--dark-bg);
+    }
+
+    #canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      box-shadow: 0 0 60px rgba(196, 30, 58, 0.3);
+    }
+
+    /* Status display */
+    #status {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    #status-progress {
+      width: 300px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      margin-top: 1rem;
+      overflow: hidden;
+    }
+
+    #status-progress-inner {
+      height: 100%;
+      background: linear-gradient(90deg, var(--blood-red), var(--blood-glow));
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    #status-notice {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .godot-title {
+      font-size: 2rem;
+      color: var(--blood-glow);
+      margin-bottom: 1rem;
+    }
+
+    /* Fullscreen button */
+    .fullscreen-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.3s;
+    }
+
+    .fullscreen-btn:hover {
+      background: rgba(196, 30, 58, 0.3);
+      border-color: var(--blood-red);
+    }
+
+    .fullscreen-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .controls {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <a href="index.html" class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      WOLFGODOT
+    </a>
+    <div class="controls">
+      <div class="control-hint">
+        <span class="key">WASD</span>
+        <span>Move</span>
+      </div>
+      <div class="control-hint">
+        <span class="key">Mouse</span>
+        <span>Look</span>
+      </div>
+      <div class="control-hint">
+        <span class="key">LMB</span>
+        <span>Shoot</span>
+      </div>
+    </div>
+    <button class="fullscreen-btn" id="fullscreen-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 3 21 3 21 9"></polyline>
+        <polyline points="9 21 3 21 3 15"></polyline>
+        <line x1="21" y1="3" x2="14" y2="10"></line>
+        <line x1="3" y1="21" x2="10" y2="14"></line>
+      </svg>
+      Fullscreen
+    </button>
+  </div>
+
+  <div class="game-container">
+    <canvas id="canvas">
+      Your browser does not support the canvas tag.
+    </canvas>
+  </div>
+
+  <div id="status">
+    <div class="godot-title">WOLFGODOT</div>
+    <div id="status-progress">
+      <div id="status-progress-inner"></div>
+    </div>
+    <div id="status-notice">Loading game engine...</div>
+  </div>
+
+  <script src="index.js"></script>
+  <script>
+    const GODOT_CONFIG = {
+      "args": [],
+      "canvasResizePolicy": 2,
+      "executable": "index",
+      "experimentalVK": false,
+      "focusCanvas": true,
+      "gdextensionLibs": []
+    };
+
+    const statusDiv = document.getElementById('status');
+    const statusNotice = document.getElementById('status-notice');
+    const statusProgressInner = document.getElementById('status-progress-inner');
+    const canvas = document.getElementById('canvas');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+    const engine = new Engine(GODOT_CONFIG);
+
+    function setStatusMode(mode) {
+      if (mode === 'hidden') {
+        statusDiv.style.display = 'none';
+      } else {
+        statusDiv.style.display = 'block';
+      }
+    }
+
+    function setStatusNotice(text) {
+      statusNotice.innerText = text;
+    }
+
+    function displayFailureNotice(err) {
+      setStatusNotice('Error: ' + (err.message || err));
+      console.error(err);
+    }
+
+    // Fullscreen handling
+    fullscreenBtn.addEventListener('click', function() {
+      if (canvas.requestFullscreen) {
+        canvas.requestFullscreen();
+      } else if (canvas.webkitRequestFullscreen) {
+        canvas.webkitRequestFullscreen();
+      } else if (canvas.mozRequestFullScreen) {
+        canvas.mozRequestFullScreen();
+      }
+    });
+
+    // Start the game
+    engine.startGame({
+      "canvas": canvas,
+      "onProgress": function(current, total) {
+        if (total > 0) {
+          const percent = Math.round((current / total) * 100);
+          statusProgressInner.style.width = percent + '%';
+          setStatusNotice('Loading... ' + percent + '%');
+        }
+      }
+    }).then(function() {
+      setStatusMode('hidden');
+    }).catch(function(err) {
+      displayFailureNotice(err);
+    });
+  </script>
+</body>
+</html>

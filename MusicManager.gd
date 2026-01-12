@@ -6,7 +6,8 @@ var current_track: String = ""
 var music_cache: Dictionary = {}
 
 # Track name to file mapping
-const TITLE_MUSIC = "INTROCW3"  # Wolf3D title theme
+const TITLE_MUSIC = "INTROCW3"  # Wolf3D title theme (intro song)
+const MENU_MUSIC = "WONDERIN"   # Wolf3D menu music
 const LEVEL_MUSIC = ["GETTHEM", "SEARCHN", "POW", "SUSPENSE", "WARMARCH", 
 	"CORNER", "NAZI_NOR", "NAZI_OMI", "HEADACHE", "DUNGEON"]
 

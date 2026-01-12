@@ -1,5 +1,5 @@
 # TitleScreen.gd
-# Displays the title screen with "PRESS A KEY" prompt
+# Authentic Wolf3D title sequence: Signon → PG13 → Title Loop
 extends Control
 
 # Original Wolf3D coordinates (320x200 VGA)
@@ -7,16 +7,39 @@ const ORIG_WIDTH = 320
 const ORIG_HEIGHT = 200
 
 # Colors from Wolf3D palette
+const COLOR_BACKGROUND = Color(138.0/255.0, 0.0, 0.0)  # Red background
 const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)  # Yellow
+const COLOR_TEXT = Color(0.9, 0.9, 0.9)
+const COLOR_GREEN = Color(0.0, 0.8, 0.0)
 
-# Scale factor for 320x200 -> current resolution
+# Title sequence states
+enum TitleState { SIGNON, PG13, TITLE, CREDITS, HIGHSCORES }
+var current_state: TitleState = TitleState.SIGNON
+
+# Timing (in seconds)
+const TITLE_DURATION = 10.0
+const CREDITS_DURATION = 7.0
+const HIGHSCORES_DURATION = 7.0
+
+# Scale and centering
 var scale_factor: float = 1.0
+var center_offset_x: float = 0.0
+var center_offset_y: float = 0.0
 
 # Loaded textures
 var pics: Dictionary = {}
 
 # UI nodes
 var background: TextureRect
+var content_container: Control
+var state_timer: float = 0.0
+var fade_alpha: float = 1.0
+var fading_out: bool = false
+var fading_in: bool = false
+var next_state_after_fade: TitleState = TitleState.TITLE
+
+# For signon "working" display
+var signon_key_pressed: bool = false
 
 
 func _ready() -> void:
@@ -26,18 +49,20 @@ func _ready() -> void:
 	
 	_calculate_scale()
 	_load_pics()
-	_show_title()
-	
-	# Play title music
-	MusicManager.play_title_music()
+	_create_ui()
+	_show_signon()
 
 
 func _calculate_scale() -> void:
 	var window_size = get_viewport().get_visible_rect().size
-	# Scale to fit 320x200 into window, maintaining aspect ratio
 	var scale_x = window_size.x / ORIG_WIDTH
 	var scale_y = window_size.y / ORIG_HEIGHT
 	scale_factor = min(scale_x, scale_y)
+	
+	var scaled_width = ORIG_WIDTH * scale_factor
+	var scaled_height = ORIG_HEIGHT * scale_factor
+	center_offset_x = (window_size.x - scaled_width) / 2.0
+	center_offset_y = (window_size.y - scaled_height) / 2.0
 
 
 func _get_pics_path() -> String:
@@ -47,10 +72,27 @@ func _get_pics_path() -> String:
 func _load_pics() -> void:
 	var path = _get_pics_path()
 	
-	# Load title pic
 	var pic_files = {
-		"TITLEPIC": "084_TITLEPIC.png"
+		"TITLEPIC": "084_TITLEPIC.png",
+		"PG13PIC": "085_PG13PIC.png",
+		"CREDITSPIC": "086_CREDITSPIC.png",
+		"HIGHSCORESPIC": "087_HIGHSCORESPIC.png"
 	}
+	
+	for pic_name in pic_files:
+		var full_path = path + pic_files[pic_name]
+		var texture = _load_texture(full_path)
+		if texture:
+			pics[pic_name] = texture
+	
+	# Load signon from the signon folder
+	var signon_path = GameState.get_asset_path() + "signon/SIGNON.png"
+	var signon_texture = _load_texture(signon_path)
+	if signon_texture:
+		pics["SIGNON"] = signon_texture
+		print("Loaded SIGNON from: %s" % signon_path)
+	else:
+		print("SIGNON not found at: %s" % signon_path)
 	
 	for pic_name in pic_files:
 		var full_path = path + pic_files[pic_name]
@@ -60,41 +102,280 @@ func _load_pics() -> void:
 
 
 func _load_texture(path: String) -> Texture2D:
-	# For user:// paths, load image directly
 	var image = Image.load_from_file(ProjectSettings.globalize_path(path))
 	if image:
 		return ImageTexture.create_from_image(image)
-	
-	push_error("TitleScreen: Failed to load texture: " + path)
 	return null
 
 
-func _show_title() -> void:
-	# Create background
+func _create_ui() -> void:
+	# Background for screens
 	background = TextureRect.new()
+	background.name = "Background"
 	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	background.stretch_mode = TextureRect.STRETCH_SCALE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 	
-	# Show title pic
+	# Container for dynamic content
+	content_container = Control.new()
+	content_container.name = "ContentContainer"
+	content_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(content_container)
+
+
+func _clear_content() -> void:
+	for child in content_container.get_children():
+		child.queue_free()
+
+
+# ============== SIGNON SCREEN ==============
+func _show_signon() -> void:
+	current_state = TitleState.SIGNON
+	signon_key_pressed = false
+	_clear_content()
+	
+	# Try to display the actual signon image
+	if pics.has("SIGNON"):
+		var signon_rect = TextureRect.new()
+		signon_rect.texture = pics["SIGNON"]
+		signon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		signon_rect.position = Vector2(center_offset_x, center_offset_y)
+		signon_rect.size = Vector2(ORIG_WIDTH * scale_factor, ORIG_HEIGHT * scale_factor)
+		signon_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		content_container.add_child(signon_rect)
+	else:
+		# Fallback: create a simple placeholder screen
+		var bg = ColorRect.new()
+		bg.color = COLOR_BACKGROUND
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		content_container.add_child(bg)
+		
+		var title_label = Label.new()
+		title_label.text = "WOLFENSTEIN 3D"
+		title_label.add_theme_font_size_override("font_size", int(24 * scale_factor))
+		title_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+		title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title_label.position = Vector2(0, center_offset_y + 60 * scale_factor)
+		title_label.size = Vector2(get_viewport().get_visible_rect().size.x, 30 * scale_factor)
+		content_container.add_child(title_label)
+	
+	# "Press a key" text (overlaid on the signon image)
+	var press_label = Label.new()
+	press_label.name = "PressLabel"
+	press_label.text = "Press a key"
+	press_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
+	press_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	press_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	press_label.position = Vector2(0, center_offset_y + 175 * scale_factor)
+	press_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	content_container.add_child(press_label)
+
+
+# ============== PG13 SCREEN ==============
+func _show_pg13() -> void:
+	current_state = TitleState.PG13
+	_clear_content()
+	
+	# Play PG13 music
+	MusicManager.play_track("NAZI_NOR")
+	
+	# Clear background texture - we'll use a blue ColorRect instead
+	background.texture = null
+	
+	# Create solid blue background (matching original Wolf3D PG13 screen)
+	# Color is a vibrant blue similar to the original: RGB(30, 144, 255) or close
+	var bg = ColorRect.new()
+	bg.color = Color8(32, 170, 255)  # Dodger blue - matches reference
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content_container.add_child(bg)
+	
+	# Show PG13 pic as small overlay in lower-right corner
+	if pics.has("PG13PIC"):
+		var pg13_rect = TextureRect.new()
+		pg13_rect.texture = pics["PG13PIC"]
+		pg13_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		pg13_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		
+		# Get the actual texture dimensions
+		var tex_width = pics["PG13PIC"].get_width()
+		var tex_height = pics["PG13PIC"].get_height()
+		
+		# Scale the PG13 image to fit nicely (original is ~150x80)
+		var scaled_width = tex_width * scale_factor
+		var scaled_height = tex_height * scale_factor
+		
+		# Position in lower-right corner with some padding
+		var padding = 16 * scale_factor
+		var pos_x = center_offset_x + (ORIG_WIDTH * scale_factor) - scaled_width - padding
+		var pos_y = center_offset_y + (ORIG_HEIGHT * scale_factor) - scaled_height - padding
+		
+		pg13_rect.position = Vector2(pos_x, pos_y)
+		pg13_rect.size = Vector2(scaled_width, scaled_height)
+		content_container.add_child(pg13_rect)
+	else:
+		# Fallback: show text if image not available
+		var pg_label = Label.new()
+		pg_label.text = "THIS GAME IS RATED PG-13"
+		pg_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+		pg_label.add_theme_color_override("font_color", COLOR_TEXT)
+		pg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pg_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		pg_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		content_container.add_child(pg_label)
+
+
+# ============== TITLE SCREEN ==============
+func _show_title() -> void:
+	current_state = TitleState.TITLE
+	state_timer = 0.0
+	_clear_content()
+	
+	# Start title music (INTROSONG)
+	MusicManager.play_title_music()
+	
 	if pics.has("TITLEPIC"):
 		background.texture = pics["TITLEPIC"]
-		background.visible = true
 	
-	# Add "Press any key" text
+	# "Press any key" text
 	var press_label = Label.new()
 	press_label.name = "PressLabel"
 	press_label.text = "PRESS A KEY"
-	press_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
+	press_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
 	press_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 	press_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	press_label.position = Vector2(0, 180 * scale_factor)
+	press_label.position = Vector2(0, center_offset_y + 180 * scale_factor)
 	press_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
-	add_child(press_label)
+	content_container.add_child(press_label)
+
+
+# ============== CREDITS SCREEN ==============
+func _show_credits() -> void:
+	current_state = TitleState.CREDITS
+	state_timer = 0.0
+	_clear_content()
+	
+	if pics.has("CREDITSPIC"):
+		background.texture = pics["CREDITSPIC"]
+
+
+# ============== HIGH SCORES SCREEN ==============
+func _show_highscores() -> void:
+	current_state = TitleState.HIGHSCORES
+	state_timer = 0.0
+	_clear_content()
+	
+	if pics.has("HIGHSCORESPIC"):
+		background.texture = pics["HIGHSCORESPIC"]
+	else:
+		# Fallback
+		background.texture = null
+		var bg = ColorRect.new()
+		bg.color = COLOR_BACKGROUND
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		content_container.add_child(bg)
+		
+		var hs_label = Label.new()
+		hs_label.text = "HIGH SCORES"
+		hs_label.add_theme_font_size_override("font_size", int(20 * scale_factor))
+		hs_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+		hs_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hs_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		hs_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		content_container.add_child(hs_label)
+
+
+# ============== STATE TRANSITIONS ==============
+func _start_fade_to(next_state: TitleState) -> void:
+	fading_out = true
+	fading_in = false
+	fade_alpha = 1.0
+	next_state_after_fade = next_state
+
+
+func _process(delta: float) -> void:
+	# Handle fading
+	if fading_out:
+		fade_alpha -= delta * 2.0  # Fade out speed
+		if fade_alpha <= 0.0:
+			fade_alpha = 0.0
+			fading_out = false
+			fading_in = true
+			_transition_to_state(next_state_after_fade)
+		background.modulate = Color(1, 1, 1, fade_alpha)
+		content_container.modulate = Color(1, 1, 1, fade_alpha)
+		return
+	
+	if fading_in:
+		fade_alpha += delta * 2.0  # Fade in speed
+		if fade_alpha >= 1.0:
+			fade_alpha = 1.0
+			fading_in = false
+		background.modulate = Color(1, 1, 1, fade_alpha)
+		content_container.modulate = Color(1, 1, 1, fade_alpha)
+		return
+	
+	# Handle automatic transitions in title loop
+	if current_state == TitleState.TITLE:
+		state_timer += delta
+		if state_timer >= TITLE_DURATION:
+			_start_fade_to(TitleState.CREDITS)
+	elif current_state == TitleState.CREDITS:
+		state_timer += delta
+		if state_timer >= CREDITS_DURATION:
+			_start_fade_to(TitleState.HIGHSCORES)
+	elif current_state == TitleState.HIGHSCORES:
+		state_timer += delta
+		if state_timer >= HIGHSCORES_DURATION:
+			_start_fade_to(TitleState.TITLE)
+
+
+func _transition_to_state(state: TitleState) -> void:
+	match state:
+		TitleState.SIGNON:
+			_show_signon()
+		TitleState.PG13:
+			_show_pg13()
+		TitleState.TITLE:
+			_show_title()
+		TitleState.CREDITS:
+			_show_credits()
+		TitleState.HIGHSCORES:
+			_show_highscores()
 
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_accept") or (event is InputEventScreenTouch and event.pressed):
-		# Transition to main menu
-		get_tree().change_scene_to_file("res://MainMenu.tscn")
+	# Ignore input during fades
+	if fading_out or fading_in:
+		return
+	
+	var key_pressed = event.is_action_pressed("ui_accept") or \
+					  event.is_action_pressed("ui_cancel") or \
+					  (event is InputEventKey and event.pressed) or \
+					  (event is InputEventScreenTouch and event.pressed) or \
+					  (event is InputEventMouseButton and event.pressed)
+	
+	if not key_pressed:
+		return
+	
+	match current_state:
+		TitleState.SIGNON:
+			if not signon_key_pressed:
+				signon_key_pressed = true
+				# Change "Press a key" to "Working..."
+				var press_label = content_container.get_node_or_null("PressLabel")
+				if press_label:
+					press_label.text = "Working..."
+				# Short delay then go to PG13
+				await get_tree().create_timer(0.5).timeout
+				_start_fade_to(TitleState.PG13)
+		
+		TitleState.PG13:
+			# Key press goes to title loop, change music
+			MusicManager.play_track("WONDERIN")
+			_start_fade_to(TitleState.TITLE)
+		
+		TitleState.TITLE, TitleState.CREDITS, TitleState.HIGHSCORES:
+			# Any key during title loop goes to main menu
+			MusicManager.play_track("WONDERIN")
+			get_tree().change_scene_to_file("res://MainMenu.tscn")

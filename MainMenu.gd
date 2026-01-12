@@ -15,7 +15,8 @@ const COLOR_HIGHLIGHT = Color(1.0, 1.0, 1.0)
 const COLOR_DEACTIVE = Color(110.0/255.0, 0.0, 0.0)
 const COLOR_VIEW_BORDER = Color(0.0, 65.0/255.0, 65.0/255.0)
 
-enum MenuState { MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE, SAVE_GAME, LOAD_GAME }
+# Menu states
+enum MenuState { MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE, SAVE_GAME, LOAD_GAME, SOUND, CONTROL, READ_THIS }
 var current_state: MenuState = MenuState.MAIN
 var main_menu_index: int = 0
 var episode_index: int = 0
@@ -23,6 +24,9 @@ var difficulty_index: int = 1
 var game_index: int = 0
 var map_index: int = 0
 var save_slot_index: int = 0
+var sound_menu_index: int = 0
+var control_menu_index: int = 0
+var read_this_page: int = 0
 
 const MAX_SAVE_SLOTS = 8
 var save_slots: Array[Dictionary] = []
@@ -255,6 +259,9 @@ func _show_main_menu() -> void:
 			label.add_theme_color_override("font_color", COLOR_TEXT)
 		
 		label.position = Vector2(center_offset_x + (MENU_X + 24) * scale_factor, center_offset_y + (menu_start_y + i * 12) * scale_factor)
+		label.custom_minimum_size = Vector2(120 * scale_factor, 12 * scale_factor)
+		label.mouse_filter = Control.MOUSE_FILTER_STOP
+		label.gui_input.connect(_on_item_gui_input.bind(i, "main"))
 		add_child(label)
 	
 	if pics.has("C_MOUSELBACKPIC"):
@@ -566,7 +573,7 @@ func _update_cursor() -> void:
 	match current_state:
 		MenuState.MAIN:
 			target_x = center_offset_x + (MENU_X) * scale_factor
-			target_y = center_offset_y + (MENU_Y + 2 + main_menu_index * 12) * scale_factor
+			target_y = center_offset_y + (MENU_Y + 10 + main_menu_index * 12) * scale_factor
 		MenuState.EPISODE_SELECT:
 			target_x = center_offset_x + 25 * scale_factor 
 			target_y = center_offset_y + (42 + episode_index * 24) * scale_factor 
@@ -732,6 +739,31 @@ func _handle_accept() -> void:
 		MenuState.LOAD_GAME:
 			if save_slot_index < save_slots.size() and save_slots[save_slot_index].has("name"):
 				_load_game_from_slot(save_slot_index)
+		MenuState.SOUND:
+			# Toggle sound settings
+			if sound_menu_index == 0:
+				GameState.sound_enabled = not GameState.sound_enabled
+			elif sound_menu_index == 1:
+				GameState.music_enabled = not GameState.music_enabled
+				if not GameState.music_enabled:
+					MusicManager.stop()
+				else:
+					MusicManager.play_track("WONDERIN")
+			_show_sound_menu()  # Refresh display
+		MenuState.CONTROL:
+			# Toggle control settings
+			if control_menu_index == 1:
+				GameState.always_run = not GameState.always_run
+			elif control_menu_index == 2:
+				GameState.mouse_look = not GameState.mouse_look
+			_show_control_menu()  # Refresh display
+		MenuState.READ_THIS:
+			# Any key/enter goes to next page or exits
+			read_this_page += 1
+			if read_this_page >= 2:  # Total pages
+				_show_main_menu()
+			else:
+				_show_read_this()  # Show next page
 
 func _handle_main_menu_select() -> void:
 	if not main_menu_options[main_menu_index].active:
@@ -748,12 +780,27 @@ func _handle_main_menu_select() -> void:
 				GameState.selected_game = available_games[0].id
 				GameState.clear_saved_state()
 				_show_episode_select()
-		3: _show_load_game_screen()
-		4: if entered_from_game: _show_save_game_screen()
-		5: _show_view_size_screen()
-		7: _show_high_scores()
-		8: get_tree().change_scene_to_file("res://TitleScreen.tscn")
-		9: get_tree().quit()
+		1:  # Sound
+			_show_sound_menu()
+		2:  # Control
+			_show_control_menu()
+		3:  # Load Game
+			_show_load_game_screen()
+		4:  # Save Game
+			if entered_from_game:
+				_show_save_game_screen()
+		5:  # Change View
+			_show_view_size_screen()
+		6:  # Read This!
+			_show_read_this()
+		7:  # View Scores
+			_show_high_scores()
+		8:  # Back to Demo - return to title loop
+			MusicManager.play_title_music()
+			get_tree().change_scene_to_file("res://TitleScreen.tscn")
+		9:  # Quit
+			get_tree().quit()
+
 
 func _handle_cancel() -> void:
 	match current_state:
@@ -771,8 +818,18 @@ func _handle_cancel() -> void:
 				save_input_active = false
 				save_input_text = ""
 				_refresh_save_screen()
-			else: _show_main_menu()
-		MenuState.LOAD_GAME: _show_main_menu()
+			else:
+				# Exit save screen - return to main menu
+				_show_main_menu()
+		MenuState.LOAD_GAME:
+			_show_main_menu()
+		MenuState.SOUND:
+			_show_main_menu()
+		MenuState.CONTROL:
+			_show_main_menu()
+		MenuState.READ_THIS:
+			_show_main_menu()
+
 
 func _show_high_scores() -> void:
 	_clear_menu_items()
@@ -801,6 +858,181 @@ func _show_high_scores() -> void:
 	add_child(label)
 	current_state = MenuState.MAIN
 	cursor_rect.visible = false
+
+
+# ============== SOUND MENU ==============
+func _show_sound_menu() -> void:
+	current_state = MenuState.SOUND
+	sound_menu_index = 0
+	
+	_clear_menu_items()
+	_draw_menu_background()
+	
+	# Header
+	var header = Label.new()
+	header.name = "SoundHeader"
+	header.text = "Sound Options"
+	_apply_font(header, 2)
+	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.position = Vector2(0, center_offset_y + 30 * scale_factor)
+	header.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	add_child(header)
+	
+	# Sound FX toggle
+	var sfx_label = Label.new()
+	sfx_label.name = "SFXLabel"
+	sfx_label.text = "Sound FX:  %s" % ("ON" if GameState.sound_enabled else "OFF")
+	_apply_font(sfx_label, 2)
+	sfx_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if sound_menu_index == 0 else COLOR_TEXT)
+	sfx_label.position = Vector2(center_offset_x + 80 * scale_factor, center_offset_y + 70 * scale_factor)
+	sfx_label.custom_minimum_size = Vector2(160 * scale_factor, 14 * scale_factor)
+	add_child(sfx_label)
+	
+	# Music toggle
+	var music_label = Label.new()
+	music_label.name = "MusicLabel"
+	music_label.text = "Music:     %s" % ("ON" if GameState.music_enabled else "OFF")
+	_apply_font(music_label, 2)
+	music_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if sound_menu_index == 1 else COLOR_TEXT)
+	music_label.position = Vector2(center_offset_x + 80 * scale_factor, center_offset_y + 90 * scale_factor)
+	music_label.custom_minimum_size = Vector2(160 * scale_factor, 14 * scale_factor)
+	add_child(music_label)
+	
+	# Instructions
+	var instr_label = Label.new()
+	instr_label.text = "Use UP/DOWN to select, ENTER to toggle, ESC to exit"
+	_apply_font(instr_label, 1)
+	instr_label.add_theme_color_override("font_color", COLOR_DEACTIVE)
+	instr_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	instr_label.position = Vector2(0, center_offset_y + 150 * scale_factor)
+	instr_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	add_child(instr_label)
+	
+	_update_cursor()
+
+
+# ============== CONTROL MENU ==============
+func _show_control_menu() -> void:
+	current_state = MenuState.CONTROL
+	control_menu_index = 0
+	
+	_clear_menu_items()
+	_draw_menu_background()
+	
+	# Header
+	var header = Label.new()
+	header.name = "ControlHeader"
+	header.text = "Control Options"
+	_apply_font(header, 2)
+	header.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.position = Vector2(0, center_offset_y + 30 * scale_factor)
+	header.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	add_child(header)
+	
+	# Mouse Sensitivity
+	var sens_label = Label.new()
+	sens_label.name = "SensLabel"
+	sens_label.text = "Mouse Sensitivity: %d" % GameState.mouse_sensitivity
+	_apply_font(sens_label, 2)
+	sens_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if control_menu_index == 0 else COLOR_TEXT)
+	sens_label.position = Vector2(center_offset_x + 60 * scale_factor, center_offset_y + 70 * scale_factor)
+	sens_label.custom_minimum_size = Vector2(200 * scale_factor, 14 * scale_factor)
+	add_child(sens_label)
+	
+	# Always Run
+	var run_label = Label.new()
+	run_label.name = "RunLabel"
+	run_label.text = "Always Run:        %s" % ("ON" if GameState.always_run else "OFF")
+	_apply_font(run_label, 2)
+	run_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if control_menu_index == 1 else COLOR_TEXT)
+	run_label.position = Vector2(center_offset_x + 60 * scale_factor, center_offset_y + 90 * scale_factor)
+	run_label.custom_minimum_size = Vector2(200 * scale_factor, 14 * scale_factor)
+	add_child(run_label)
+	
+	# Mouse Look
+	var mouse_label = Label.new()
+	mouse_label.name = "MouseLabel"
+	mouse_label.text = "Mouse Look:        %s" % ("ON" if GameState.mouse_look else "OFF")
+	_apply_font(mouse_label, 2)
+	mouse_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT if control_menu_index == 2 else COLOR_TEXT)
+	mouse_label.position = Vector2(center_offset_x + 60 * scale_factor, center_offset_y + 110 * scale_factor)
+	mouse_label.custom_minimum_size = Vector2(200 * scale_factor, 14 * scale_factor)
+	add_child(mouse_label)
+	
+	# Instructions
+	var instr_label = Label.new()
+	instr_label.text = "UP/DOWN=select, LEFT/RIGHT=adjust, ENTER=toggle, ESC=exit"
+	_apply_font(instr_label, 1)
+	instr_label.add_theme_color_override("font_color", COLOR_DEACTIVE)
+	instr_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	instr_label.position = Vector2(0, center_offset_y + 150 * scale_factor)
+	instr_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	add_child(instr_label)
+	
+	_update_cursor()
+
+
+# ============== READ THIS ==============
+func _show_read_this() -> void:
+	current_state = MenuState.READ_THIS
+	read_this_page = 0
+	
+	_clear_menu_items()
+	
+	# Blue background like original
+	var bg = ColorRect.new()
+	bg.name = "ReadThisBG"
+	bg.color = Color(0.0, 0.0, 0.4)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	
+	# Help text pages
+	var help_pages = [
+		"WOLFENSTEIN 3D CONTROLS\n\n" +
+		"ARROW KEYS - Move forward/back, turn left/right\n" +
+		"CTRL - Fire weapon\n" +
+		"SPACE - Open doors / Activate\n" +
+		"SHIFT - Run\n" +
+		"1-4 - Select weapon\n" +
+		"ESC - Menu\n\n" +
+		"MOUSE: Move to turn, Click to fire",
+		
+		"TIPS FOR SURVIVAL\n\n" +
+		"* Search for secret push walls\n" +
+		"* Collect treasures for bonus points\n" +
+		"* Save your game often!\n" +
+		"* Listen for enemy sounds\n" +
+		"* Conserve ammo when possible\n\n" +
+		"Good luck, soldier!"
+	]
+	
+	# Display current page
+	var content = Label.new()
+	content.name = "ReadThisContent"
+	content.text = help_pages[read_this_page]
+	_apply_font(content, 2)
+	content.add_theme_color_override("font_color", COLOR_TEXT)
+	content.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	content.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	content.position = Vector2(center_offset_x + 40 * scale_factor, center_offset_y + 30 * scale_factor)
+	content.size = Vector2(240 * scale_factor, 140 * scale_factor)
+	add_child(content)
+	
+	# Page indicator
+	var page_label = Label.new()
+	page_label.name = "PageLabel"
+	page_label.text = "Page %d of %d - Use LEFT/RIGHT, ESC to exit" % [read_this_page + 1, help_pages.size()]
+	_apply_font(page_label, 1)
+	page_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
+	page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	page_label.position = Vector2(0, center_offset_y + 180 * scale_factor)
+	page_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
+	add_child(page_label)
+	
+	cursor_rect.visible = false
+
 
 func _show_view_size_screen() -> void:
 	current_state = MenuState.VIEW_SIZE
@@ -976,8 +1208,18 @@ func _handle_up() -> void:
 		MenuState.VIEW_SIZE:
 			GameState.increase_view_size()
 			_update_view_size_preview()
-		MenuState.SAVE_GAME: if not save_input_active: save_slot_index = (save_slot_index - 1 + MAX_SAVE_SLOTS) % MAX_SAVE_SLOTS
-		MenuState.LOAD_GAME: save_slot_index = (save_slot_index - 1 + MAX_SAVE_SLOTS) % MAX_SAVE_SLOTS
+		MenuState.SAVE_GAME:
+			if not save_input_active:
+				save_slot_index = (save_slot_index - 1 + MAX_SAVE_SLOTS) % MAX_SAVE_SLOTS
+		MenuState.LOAD_GAME:
+			save_slot_index = (save_slot_index - 1 + MAX_SAVE_SLOTS) % MAX_SAVE_SLOTS
+		MenuState.SOUND:
+			sound_menu_index = (sound_menu_index - 1 + 2) % 2
+			_show_sound_menu()
+		MenuState.CONTROL:
+			control_menu_index = (control_menu_index - 1 + 3) % 3
+			_show_control_menu()
+	
 	_update_cursor()
 	_update_menu_highlights()
 
@@ -993,20 +1235,48 @@ func _handle_down() -> void:
 		MenuState.VIEW_SIZE:
 			GameState.decrease_view_size()
 			_update_view_size_preview()
-		MenuState.SAVE_GAME: if not save_input_active: save_slot_index = (save_slot_index + 1) % MAX_SAVE_SLOTS
-		MenuState.LOAD_GAME: save_slot_index = (save_slot_index + 1) % MAX_SAVE_SLOTS
+		MenuState.SAVE_GAME:
+			if not save_input_active:
+				save_slot_index = (save_slot_index + 1) % MAX_SAVE_SLOTS
+		MenuState.LOAD_GAME:
+			save_slot_index = (save_slot_index + 1) % MAX_SAVE_SLOTS
+		MenuState.SOUND:
+			sound_menu_index = (sound_menu_index + 1) % 2
+			_show_sound_menu()
+		MenuState.CONTROL:
+			control_menu_index = (control_menu_index + 1) % 3
+			_show_control_menu()
+	
 	_update_cursor()
 	_update_menu_highlights()
 
 func _handle_left() -> void:
-	if current_state == MenuState.VIEW_SIZE:
-		GameState.decrease_view_size()
-		_update_view_size_preview()
+	match current_state:
+		MenuState.VIEW_SIZE:
+			GameState.decrease_view_size()
+			_update_view_size_preview()
+		MenuState.CONTROL:
+			if control_menu_index == 0:  # Mouse sensitivity
+				GameState.mouse_sensitivity = max(1, GameState.mouse_sensitivity - 1)
+				_show_control_menu()
+		MenuState.READ_THIS:
+			read_this_page = max(0, read_this_page - 1)
+			_show_read_this()
+
 
 func _handle_right() -> void:
-	if current_state == MenuState.VIEW_SIZE:
-		GameState.increase_view_size()
-		_update_view_size_preview()
+	match current_state:
+		MenuState.VIEW_SIZE:
+			GameState.increase_view_size()
+			_update_view_size_preview()
+		MenuState.CONTROL:
+			if control_menu_index == 0:  # Mouse sensitivity
+				GameState.mouse_sensitivity = min(10, GameState.mouse_sensitivity + 1)
+				_show_control_menu()
+		MenuState.READ_THIS:
+			read_this_page = min(1, read_this_page + 1)
+			_show_read_this()
+
 
 func _start_game() -> void:
 	var actual_map_index = selected_episode * 10 + map_index

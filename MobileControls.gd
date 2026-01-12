@@ -55,13 +55,13 @@ func _update_movement_actions():
 		Input.action_release("move_forward")
 		Input.action_release("move_backward")
 	
-	# Strafe Left/Right (Wolf3D uses turn by default, but let's map to ui_left/right for strafing)
-	if move_vector.x < -0.3:
-		Input.action_press("ui_left")
-		Input.action_release("ui_right")
-	elif move_vector.x > 0.3:
-		Input.action_press("ui_right")
-		Input.action_release("ui_left")
+	# Turning Left/Right
+	if move_vector.x < -0.4:
+		Input.action_press("turn_left")
+		Input.action_release("turn_right")
+	elif move_vector.x > 0.4:
+		Input.action_press("turn_right")
+		Input.action_release("turn_left")
 	else:
-		Input.action_release("ui_left")
-		Input.action_release("ui_right")
+		Input.action_release("turn_left")
+		Input.action_release("turn_right")

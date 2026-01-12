@@ -2,12 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cs82i4hquovox"
-valid=false
+uid="uid://da8rmb8upjyvk"
+path="res://.godot/imported/joystick_base.jpg-ccf19e64dd6905eb4cb76c1117cf6aa1.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
-source_file="res://ui/joystick_tip.webp"
+source_file="res://ui/joystick_base.jpg"
+dest_files=["res://.godot/imported/joystick_base.jpg-ccf19e64dd6905eb4cb76c1117cf6aa1.ctex"]
 
 [params]
 

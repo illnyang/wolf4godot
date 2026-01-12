@@ -1,26 +1,50 @@
-[gd_scene load_steps=7 format=3 uid="uid://bwlp1654240cs"]
+[gd_scene load_steps=8 format=3 uid="uid://bwlp1654240cs"]
 
 [ext_resource type="Script" uid="uid://dx4ybywye86aw" path="res://SceneRoot.gd" id="1_55onw"]
 [ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://Player.tscn" id="2_w4mwi"]
 [ext_resource type="Script" uid="uid://bsh6818j46oyw" path="res://MapLoader.gd" id="3_en2fo"]
 [ext_resource type="Script" uid="uid://dpj3m032wmn7y" path="res://SoundPlayer.gd" id="3_x42b1"]
 [ext_resource type="Script" uid="uid://b1nvakt47yiie" path="res://HUD.gd" id="4_x42b1"]
-[ext_resource type="Script" uid="uid://dpt62ch8pvobk" path="res://ViewBorder.gd" id="5_vborder"]
+[ext_resource type="Script" path="res://GameViewport.gd" id="5_gvscript"]
+
+[sub_resource type="World3D" id="World3D_game"]
 
 [node name="SceneRoot" type="Node3D"]
 physics_interpolation_mode = 1
 script = ExtResource("1_55onw")
 player_scene = ExtResource("2_w4mwi")
 
-[node name="MapLoader" type="Node3D" parent="."]
-script = ExtResource("3_en2fo")
-
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 script = ExtResource("3_x42b1")
 
-[node name="ViewBorder" type="CanvasLayer" parent="."]
-layer = 5
-script = ExtResource("5_vborder")
+[node name="GameViewport" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 640.0
+offset_bottom = 320.0
+script = ExtResource("5_gvscript")
+
+[node name="Background" type="ColorRect" parent="GameViewport"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 320.0
+color = Color(0, 0.255, 0.255, 1)
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="GameViewport"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 320.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="GameViewport/SubViewportContainer"]
+own_world_3d = true
+world_3d = SubResource("World3D_game")
+handle_input_locally = false
+size = Vector2i(640, 320)
+render_target_update_mode = 4
+
+[node name="MapLoader" type="Node3D" parent="GameViewport/SubViewportContainer/SubViewport"]
+script = ExtResource("3_en2fo")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 layer = 10

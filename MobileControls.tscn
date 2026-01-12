@@ -1,9 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://b8yqx5j2v5n8r"]
+[gd_scene load_steps=7 format=3 uid="uid://b8yqx5j2v5n8r"]
 
 [ext_resource type="Script" path="res://MobileControls.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://ui/joystick_base.webp" id="2_base"]
-[ext_resource type="Texture2D" path="res://ui/joystick_tip.webp" id="3_tip"]
-[ext_resource type="Texture2D" path="res://ui/button_fire.webp" id="4_fire"]
+[ext_resource type="Texture2D" path="res://ui/joystick_base.jpg" id="2_base"]
+[ext_resource type="Texture2D" path="res://ui/joystick_tip.jpg" id="3_tip"]
+[ext_resource type="Texture2D" path="res://ui/icon_fire.jpg" id="4_fire"]
+[ext_resource type="Texture2D" path="res://ui/icon_door.jpg" id="5_door"]
+[ext_resource type="Texture2D" path="res://ui/icon_menu.jpg" id="6_menu"]
 
 [node name="MobileControls" type="CanvasLayer"]
 script = ExtResource("1_script")
@@ -54,29 +56,22 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="ShootButton" type="TouchScreenButton" parent="."]
-position = Vector2(1000, 470)
+position = Vector2(950, 420)
 scale = Vector2(0.3, 0.3)
 texture_normal = ExtResource("4_fire")
 action = "shoot"
 visibility_mode = 1
 
-[node name="TurnLeft" type="TouchScreenButton" parent="."]
-position = Vector2(850, 520)
-scale = Vector2(0.2, 0.2)
-texture_normal = ExtResource("4_fire")
-action = "turn_left"
-visibility_mode = 1
-
-[node name="TurnRight" type="TouchScreenButton" parent="."]
-position = Vector2(1150, 520)
-scale = Vector2(0.2, 0.2)
-texture_normal = ExtResource("4_fire")
-action = "turn_right"
-visibility_mode = 1
-
 [node name="InteractButton" type="TouchScreenButton" parent="."]
-position = Vector2(1000, 320)
+position = Vector2(820, 480)
 scale = Vector2(0.2, 0.2)
-texture_normal = ExtResource("4_fire")
+texture_normal = ExtResource("5_door")
 action = "action"
+visibility_mode = 1
+
+[node name="MenuButton" type="TouchScreenButton" parent="."]
+position = Vector2(1080, 50)
+scale = Vector2(0.15, 0.15)
+texture_normal = ExtResource("6_menu")
+action = "ui_cancel"
 visibility_mode = 1

@@ -2,12 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ndepjluhgv7p"
-valid=false
+uid="uid://c5sp2qajg6fwf"
+path="res://.godot/imported/button_fire.jpg-2522a34388d52c0db599e29c172f76c7.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
-source_file="res://ui/joystick_base.webp"
+source_file="res://ui/button_fire.jpg"
+dest_files=["res://.godot/imported/button_fire.jpg-2522a34388d52c0db599e29c172f76c7.ctex"]
 
 [params]
 

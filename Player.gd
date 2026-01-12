@@ -253,6 +253,30 @@ func _attempt_move(offset_3d: Vector3) -> void:
 						var push_dir = -offset_3d.normalized()
 						new_x = pw_pos.x + push_dir.x * (radius + skin)
 						new_z = pw_pos.z + push_dir.z * (radius + skin)
+	
+	# Check static object collisions (tables, lamps, columns, etc)
+	var all_static_objects = get_tree().get_nodes_in_group("static_objects")
+	for static_obj in all_static_objects:
+		if static_obj and is_instance_valid(static_obj):
+			var obj_pos = static_obj.position
+			# Check cylinder collision (radius 0.3)
+			var dx = new_x - obj_pos.x
+			var dz = new_z - obj_pos.z
+			var dist = sqrt(dx*dx + dz*dz)
+			var combined_radius = radius + 0.3  # player radius + object radius
+			
+			if dist < combined_radius:
+				# Collision with static object - push player back
+				var penetration = combined_radius - dist + skin
+				if dist > 0:
+					new_x = new_x + (dx / dist) * penetration
+					new_z = new_z + (dz / dist) * penetration
+				else:
+					# Player is exactly at object center - push in opposite direction
+					if offset_3d.length() > 0:
+						var push_dir = -offset_3d.normalized()
+						new_x = obj_pos.x + push_dir.x * combined_radius
+						new_z = obj_pos.z + push_dir.z * combined_radius
 
 	# Then check tile-based collisions
 	var min_tx = int(floor(new_x - radius))

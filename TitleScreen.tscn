@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://btitlescreen123"]
+[gd_scene load_steps=2 format=3 uid="uid://b1n3pwlh21gf7"]
 
 [ext_resource type="Script" uid="uid://c3titlescreengd" path="res://TitleScreen.gd" id="1_title"]
 

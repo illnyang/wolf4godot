@@ -423,6 +423,7 @@ func _show_difficulty_select() -> void:
 	var panel_y = 65
 	var panel_w = 240
 	var panel_h = 110
+	var text_base_x = 100  # X offset for difficulty text labels
 	
 	# Shadow/Highlight for sunken look
 	var hr = ColorRect.new()

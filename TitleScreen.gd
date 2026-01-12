@@ -54,7 +54,6 @@ func _ready() -> void:
 	
 	if GameState.skip_to_title_loop:
 		GameState.skip_to_title_loop = false  # Reset for next time
-		MusicManager.play_title_music()
 		_show_title()
 	else:
 		_show_signon()
@@ -243,17 +242,7 @@ func _show_title() -> void:
 	
 	if pics.has("TITLEPIC"):
 		background.texture = pics["TITLEPIC"]
-	
-	# "Press any key" text
-	var press_label = Label.new()
-	press_label.name = "PressLabel"
-	press_label.text = "PRESS A KEY"
-	press_label.add_theme_font_size_override("font_size", int(14 * scale_factor))
-	press_label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
-	press_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	press_label.position = Vector2(0, center_offset_y + 180 * scale_factor)
-	press_label.size = Vector2(get_viewport().get_visible_rect().size.x, 20 * scale_factor)
-	content_container.add_child(press_label)
+
 
 
 # ============== CREDITS SCREEN ==============
@@ -382,9 +371,9 @@ func _input(event: InputEvent) -> void:
 				_start_fade_to(TitleState.PG13)
 		
 		TitleState.PG13:
-			# Key press goes to title loop, change music IMMEDIATELY on press
-			MusicManager.play_title_music()
-			_start_fade_to(TitleState.TITLE)
+			# Key press goes DIRECTLY to options (second push button -> options)
+			MusicManager.play_track("WONDERIN")
+			get_tree().change_scene_to_file("res://MainMenu.tscn")
 		
 		TitleState.TITLE, TitleState.CREDITS, TitleState.HIGHSCORES:
 			# Any key during title loop goes to main menu

@@ -10,11 +10,11 @@ const MENU_H = 136
 const COLOR_BACKGROUND = Color(138.0/255.0, 0.0, 0.0)
 const COLOR_BORDER = Color(110.0/255.0, 0.0, 0.0)
 const COLOR_STRIPE = Color(0.0, 0.0, 0.0)
-const COLOR_TEXT = Color(0.9, 0.9, 0.9)
-const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)
+const COLOR_TEXT = Color(141.0/255.0, 141.0/255.0, 141.0/255.0)
+const COLOR_HIGHLIGHT = Color(194.0/255.0, 194.0/255.0, 194.0/255.0)
 const COLOR_DEACTIVE = Color(0.5, 0.5, 0.5)
 const COLOR_VIEW_BORDER = Color(0.0, 65.0/255.0, 65.0/255.0)
-
+const COLOR_RED = Color(113.0/255.0, 0.0/255.0, 0.0/255.0)
 # Menu states
 enum MenuState { MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE, SAVE_GAME, LOAD_GAME, SOUND, CONTROL, READ_THIS }
 var current_state: MenuState = MenuState.MAIN
@@ -243,7 +243,7 @@ func _show_main_menu() -> void:
 		add_child(header)
 	
 	# Draw menu items
-	var menu_start_y = MENU_Y + 10
+	var menu_start_y = MENU_Y - 1
 	for i in range(main_menu_options.size()):
 		var item = main_menu_options[i]
 		var label = Label.new()
@@ -252,7 +252,7 @@ func _show_main_menu() -> void:
 		_apply_font(label, 2)
 		
 		if not item.active:
-			label.add_theme_color_override("font_color", COLOR_DEACTIVE)
+			label.add_theme_color_override("font_color", COLOR_RED)
 		elif i == main_menu_index:
 			label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 		else:
@@ -277,6 +277,9 @@ func _show_main_menu() -> void:
 	)
 		footer.size = Vector2(footer_width * scale_factor, 10 * scale_factor)
 		add_child(footer)
+		cursor_rect.visible = true
+		_update_cursor()
+
 
 func _show_episode_select() -> void:
 	current_state = MenuState.EPISODE_SELECT
@@ -366,19 +369,21 @@ func _show_episode_select() -> void:
 			pic_rect.texture = pics[ep.pic]
 			pic_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			pic_rect.stretch_mode = TextureRect.STRETCH_SCALE
-			pic_rect.position = Vector2(center_offset_x + 60 * scale_factor, center_offset_y + ep_y * scale_factor)
+			pic_rect.position = Vector2(center_offset_x + 48 * scale_factor, center_offset_y + ep_y * scale_factor)
 			pic_rect.size = Vector2(pics[ep.pic].get_width() * scale_factor,
 										pics[ep.pic].get_height() * scale_factor)
 			add_child(pic_rect)
 		
-		var text_color = Color.WHITE if i == episode_index else Color(0.6, 0.6, 0.6)
+		var text_color = COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT
 		
 		var title_label = Label.new()
+		var reduced_scale = scale_factor * 0.92
 		title_label.name = "EpisodeTitle_%d" % i
 		title_label.text = episode_title
 		_apply_font(title_label, 2)
+		title_label.scale = Vector2(reduced_scale, reduced_scale)
 		title_label.add_theme_color_override("font_color", text_color)
-		title_label.position = Vector2(center_offset_x + 120 * scale_factor, center_offset_y + ep_y * scale_factor)
+		title_label.position = Vector2(center_offset_x + 100 * scale_factor, center_offset_y + ep_y * scale_factor)
 		title_label.custom_minimum_size = Vector2(180 * scale_factor, 12 * scale_factor)
 		title_label.mouse_filter = Control.MOUSE_FILTER_STOP
 		title_label.gui_input.connect(_on_item_gui_input.bind(i, "episode"))
@@ -389,8 +394,9 @@ func _show_episode_select() -> void:
 			subtitle_label.name = "EpisodeSubtitle_%d" % i
 			subtitle_label.text = episode_subtitle
 			_apply_font(subtitle_label, 2)
+			subtitle_label.scale = Vector2(reduced_scale, reduced_scale)
 			subtitle_label.add_theme_color_override("font_color", text_color)
-			subtitle_label.position = Vector2(center_offset_x + 120 * scale_factor, center_offset_y + (ep_y + 11) * scale_factor)
+			subtitle_label.position = Vector2(center_offset_x + 100 * scale_factor, center_offset_y + (ep_y + 10) * scale_factor)
 			add_child(subtitle_label)
 	
 	if pics.has("C_MOUSELBACKPIC"):
@@ -628,16 +634,16 @@ func _update_cursor() -> void:
 	match current_state:
 		MenuState.MAIN:
 			target_x = center_offset_x + (MENU_X) * scale_factor
-			target_y = center_offset_y + (MENU_Y + 10 + main_menu_index * 12) * scale_factor
+			target_y = center_offset_y + (MENU_Y + main_menu_index * 12) * scale_factor
 		MenuState.EPISODE_SELECT:
-			target_x = center_offset_x + 10 * scale_factor 
+			target_x = center_offset_x + 22 * scale_factor 
 			target_y = center_offset_y + (42 + episode_index * 24) * scale_factor 
 		MenuState.DIFFICULTY_SELECT:
 			target_x = center_offset_x + 65 * scale_factor
-			target_y = center_offset_y + (78 + difficulty_index * 20) * scale_factor
+			target_y = center_offset_y + (80 + difficulty_index * 26) * scale_factor
 		MenuState.MAP_SELECT:
-			target_x = center_offset_x + 65 * scale_factor
-			target_y = center_offset_y + (50 + map_index * 14) * scale_factor
+			target_x = center_offset_x + 68 * scale_factor
+			target_y = center_offset_y + (52 + map_index * 14) * scale_factor
 		MenuState.SAVE_GAME:
 			if not save_input_active:
 				target_x = center_offset_x + (MENU_X) * scale_factor
@@ -659,14 +665,14 @@ func _update_menu_highlights() -> void:
 				var label = get_node_or_null("MenuItem_%d" % i) as Label
 				if label:
 					if not main_menu_options[i].active:
-						label.add_theme_color_override("font_color", COLOR_DEACTIVE)
+						label.add_theme_color_override("font_color", COLOR_RED)
 					elif i == main_menu_index:
 						label.add_theme_color_override("font_color", COLOR_HIGHLIGHT)
 					else:
 						label.add_theme_color_override("font_color", COLOR_TEXT)
 		MenuState.EPISODE_SELECT:
 			for i in range(episode_options.size()):
-				var color = Color.WHITE if i == episode_index else Color(0.6, 0.6, 0.6)
+				var color = COLOR_HIGHLIGHT if i == episode_index else COLOR_TEXT
 				var title_label = get_node_or_null("EpisodeTitle_%d" % i) as Label
 				var subtitle_label = get_node_or_null("EpisodeSubtitle_%d" % i) as Label
 				if title_label: title_label.add_theme_color_override("font_color", color)

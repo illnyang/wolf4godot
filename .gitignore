@@ -16,6 +16,10 @@ web_deploy.zip
 # Web exports
 web/
 
+# Project assets and data (User-generated/Local)
+assets/
+data/
+
 # Editor/OS junk
 .editorconfig
 *.tmp

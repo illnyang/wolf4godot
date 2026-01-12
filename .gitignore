@@ -10,6 +10,11 @@ wolfgodot.pck
 wolfgodot.zip
 wolfgodot.apk
 wolfgodot.apk.idsig
+web_deploy.zip
+*.zip
+
+# Web exports
+web/
 
 # Editor/OS junk
 .editorconfig

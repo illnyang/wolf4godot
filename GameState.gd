@@ -47,6 +47,7 @@ var difficulty: Difficulty = Difficulty.NORMAL
 
 var in_game: bool = false
 var menu_from_game: bool = false
+var skip_to_title_loop: bool = false  # When true, TitleScreen skips signon/PG13 and goes directly to title loop
 
 # Sound/Music settings
 var sound_enabled: bool = true

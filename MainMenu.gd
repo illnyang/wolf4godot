@@ -796,6 +796,7 @@ func _handle_main_menu_select() -> void:
 		7:  # View Scores
 			_show_high_scores()
 		8:  # Back to Demo - return to title loop
+			GameState.skip_to_title_loop = true  # Skip signon/PG13, go straight to title loop
 			MusicManager.play_title_music()
 			get_tree().change_scene_to_file("res://TitleScreen.tscn")
 		9:  # Quit

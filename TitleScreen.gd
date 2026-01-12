@@ -17,6 +17,7 @@ enum TitleState { SIGNON, PG13, TITLE, CREDITS, HIGHSCORES }
 var current_state: TitleState = TitleState.SIGNON
 
 # Timing (in seconds)
+const PG13_DURATION = 5.0
 const TITLE_DURATION = 10.0
 const CREDITS_DURATION = 7.0
 const HIGHSCORES_DURATION = 7.0
@@ -50,7 +51,13 @@ func _ready() -> void:
 	_calculate_scale()
 	_load_pics()
 	_create_ui()
-	_show_signon()
+	
+	if GameState.skip_to_title_loop:
+		GameState.skip_to_title_loop = false  # Reset for next time
+		MusicManager.play_title_music()
+		_show_title()
+	else:
+		_show_signon()
 
 
 func _calculate_scale() -> void:
@@ -175,6 +182,7 @@ func _show_signon() -> void:
 # ============== PG13 SCREEN ==============
 func _show_pg13() -> void:
 	current_state = TitleState.PG13
+	state_timer = 0.0
 	_clear_content()
 	
 	# Play PG13 music
@@ -231,8 +239,7 @@ func _show_title() -> void:
 	state_timer = 0.0
 	_clear_content()
 	
-	# Start title music (INTROSONG)
-	MusicManager.play_title_music()
+	# Start title music (INTROSONG) - REMOVED, triggered by button press
 	
 	if pics.has("TITLEPIC"):
 		background.texture = pics["TITLEPIC"]
@@ -315,8 +322,12 @@ func _process(delta: float) -> void:
 		content_container.modulate = Color(1, 1, 1, fade_alpha)
 		return
 	
-	# Handle automatic transitions in title loop
-	if current_state == TitleState.TITLE:
+	# Handle automatic transitions
+	if current_state == TitleState.PG13:
+		state_timer += delta
+		if state_timer >= PG13_DURATION:
+			_start_fade_to(TitleState.TITLE)
+	elif current_state == TitleState.TITLE:
 		state_timer += delta
 		if state_timer >= TITLE_DURATION:
 			_start_fade_to(TitleState.CREDITS)
@@ -371,8 +382,8 @@ func _input(event: InputEvent) -> void:
 				_start_fade_to(TitleState.PG13)
 		
 		TitleState.PG13:
-			# Key press goes to title loop, change music
-			MusicManager.play_track("WONDERIN")
+			# Key press goes to title loop, change music IMMEDIATELY on press
+			MusicManager.play_title_music()
 			_start_fade_to(TitleState.TITLE)
 		
 		TitleState.TITLE, TitleState.CREDITS, TitleState.HIGHSCORES:

@@ -110,7 +110,6 @@ func try_pickup(player: Player) -> bool:
 	return false
 
 func _play_sound() -> void:
-	# Use the extracted AdLib sounds for pickups
 	match pickup_type:
 		PickupType.FOOD, PickupType.HEALTH_KIT:
 			SoundManager.play_sfx("HEALTH1SND")
@@ -133,4 +132,4 @@ func _play_sound() -> void:
 		PickupType.EXTRA_LIFE:
 			SoundManager.play_sfx("BONUS1UPSND")
 		_:
-			SoundManager.play_sfx("SLURPIESND")  # Fallback
+			SoundManager.play_sfx("SLURPIESND")

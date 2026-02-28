@@ -11,7 +11,6 @@ var joystick_max_distance = 50.0
 var move_vector = Vector2.ZERO
 
 func _ready():
-	# Hide on desktop
 	if OS.get_name() == "Windows" or OS.get_name() == "macOS" or OS.get_name() == "Linux":
 		hide()
 	
@@ -40,11 +39,9 @@ func _input(event):
 		joystick_tip.global_position = joystick_center + offset - joystick_tip.size / 2
 		move_vector = offset / joystick_max_distance
 		
-		# Map to actions
 		_update_movement_actions()
 
 func _update_movement_actions():
-	# Forward/Backward
 	if move_vector.y < -0.3:
 		Input.action_press("move_forward")
 		Input.action_release("move_backward")
@@ -55,7 +52,6 @@ func _update_movement_actions():
 		Input.action_release("move_forward")
 		Input.action_release("move_backward")
 	
-	# Turning Left/Right
 	if move_vector.x < -0.4:
 		Input.action_press("turn_left")
 		Input.action_release("turn_right")

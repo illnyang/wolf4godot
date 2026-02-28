@@ -4,15 +4,13 @@ var health: int = 100
 var lives: int = 3
 var ammo: int = 8
 var score: int = 0
-var keys: int = 0  # Bitfield: 1=gold, 2=silver, 4=bronze, 8=key4
+var keys: int = 0
 
-# Weapon system
 enum Weapon { KNIFE, PISTOL, MACHINEGUN, CHAINGUN }
 var weapon: Weapon = Weapon.PISTOL
 var best_weapon: Weapon = Weapon.PISTOL
 var chosen_weapon: Weapon = Weapon.PISTOL
 
-# Level stats (reset each level)
 var level_stats: LevelStats = null
 
 var current_map: int = 0
@@ -23,18 +21,14 @@ var selected_game: String = "wolf3d"
 func get_asset_path() -> String:
 	return "user://assets/" + selected_game + "/"
 
-# Returns potential locations for game data files
 func get_external_data_paths(game_name: String) -> Array[String]:
 	var paths: Array[String] = []
-	# 1. Bundled in project (res://)
 	paths.append("res://data/" + game_name + "/")
-	# 2. User data folder (user://)
 	paths.append("user://data/" + game_name + "/")
-	# 3. Next to the executable (data/ next to EXE)
-	if OS.has_feature("template"): # If exported
+	if OS.has_feature("template"):
 		var exe_dir = OS.get_executable_path().get_base_dir()
 		paths.append(exe_dir.path_join("data/" + game_name + "/"))
-	else: # In editor
+	else:
 		var project_dir = ProjectSettings.globalize_path("res://")
 		paths.append(project_dir.path_join("data/" + game_name + "/"))
 	
@@ -58,41 +52,33 @@ func get_music_path() -> String:
 func get_fonts_path() -> String:
 	return get_asset_path() + "fonts/"
 
-# Difficulty system
 enum Difficulty { BABY, EASY, NORMAL, HARD }
 var difficulty: Difficulty = Difficulty.NORMAL
 
 var in_game: bool = false
 var menu_from_game: bool = false
-var skip_to_title_loop: bool = false  # When true, TitleScreen skips signon/PG13 and goes directly to title loop
-
-# Sound/Music settings
+var skip_to_title_loop: bool = false
 var sound_enabled: bool = true
 var music_enabled: bool = true
 
-# Control settings
 var mouse_sensitivity: int = 5  # 1-10 scale
 var always_run: bool = false
 var mouse_look: bool = true
 
 var saved_game_state: Dictionary = {}
 
-# View size system (original Wolf3D behavior)
-# viewsize ranges from 4 to 21 (in 16-pixel units)
-# viewwidth = viewsize * 16, viewheight = viewwidth * 0.5
 const VIEW_SIZE_MIN = 4
 const VIEW_SIZE_MAX = 21
 const VIEW_SIZE_DEFAULT = 15
-const HEIGHT_RATIO = 0.5  # Original Wolf3D aspect ratio
-const STATUSLINES = 40    # HUD height in original 320x200 resolution
-const GAME_AREA_HEIGHT = 160  # 200 - STATUSLINES
+const HEIGHT_RATIO = 0.5
+const STATUSLINES = 40
+const GAME_AREA_HEIGHT = 160
 
 var view_size: int = VIEW_SIZE_DEFAULT
 
 signal view_size_changed(new_size: int)
 
 
-# Difficulty modifiers
 func get_damage_multiplier() -> float:
 	match difficulty:
 		Difficulty.BABY:
@@ -134,18 +120,16 @@ func _ready():
 
 # ===== HEALTH SYSTEM =====
 signal player_died
-signal damage_taken(amount: int)  # For screen flash
+signal damage_taken(amount: int)
 
-# Track who killed the player for death camera
 var last_attacker: Node3D = null
 
 func take_damage(amount: int, attacker: Node3D = null) -> void:
 	if health <= 0:
 		return
 
-	# Apply difficulty multiplier
 	var actual_damage = int(amount * get_damage_multiplier())
-	actual_damage = max(actual_damage, 1)  # Always at least 1 damage
+	actual_damage = max(actual_damage, 1)
 
 	var old_health = health
 	health -= actual_damage
@@ -153,11 +137,9 @@ func take_damage(amount: int, attacker: Node3D = null) -> void:
 	print("[DEBUG] take_damage: %d -> %d (damage: %d)" % [old_health, health, actual_damage])
 	health_changed.emit(health)
 	
-	# Play pain sound and emit for screen flash
 	SoundManager.play_sfx("TAKEDAMAGESND")
 	damage_taken.emit(actual_damage)
 	
-	# Track attacker for death sequence
 	if attacker:
 		last_attacker = attacker
 
@@ -184,16 +166,11 @@ func die() -> void:
 	lives_changed.emit(lives)
 
 	if lives >= 0:
-		# DON'T reset stats here - keep health at 0 so death face shows
-		# Stats will be reset when level reloads via start_level()
-		
-		# Emit signal - DeathSequence handles the death animation and restart
 		restart_level_requested.emit()
 	else:
 		game_over()
 
 
-# Called when level restarts after death (or at start of any level)
 func reset_for_respawn() -> void:
 	health = 100
 	weapon = best_weapon
@@ -209,7 +186,6 @@ func reset_for_respawn() -> void:
 
 func game_over() -> void:
 	print("GAME OVER")
-	# DeathSequence handles game over screen
 
 
 # ===== AMMO SYSTEM =====
@@ -217,7 +193,6 @@ func give_ammo(amount: int) -> void:
 	if ammo == 99:
 		return
 
-	# If had no ammo and wasn't attacking, switch to chosen weapon
 	var had_no_ammo = ammo == 0
 
 	ammo += amount
@@ -234,7 +209,6 @@ func use_ammo(amount: int = 1) -> bool:
 		ammo -= amount
 		ammo_changed.emit(ammo)
 
-		# Auto-switch to knife if out of ammo
 		if ammo == 0:
 			weapon = Weapon.KNIFE
 			weapon_changed.emit(weapon)
@@ -256,7 +230,7 @@ func give_weapon(new_weapon: Weapon) -> void:
 
 func change_weapon(new_weapon: Weapon) -> void:
 	if ammo == 0 and new_weapon != Weapon.KNIFE:
-		return  # Can't switch without ammo
+		return
 
 	if new_weapon <= best_weapon:
 		weapon = new_weapon
@@ -266,7 +240,6 @@ func change_weapon(new_weapon: Weapon) -> void:
 
 # ===== KEYS SYSTEM =====
 func give_key(key_index: int) -> void:
-	# key_index: 0=gold, 1=silver, 2=bronze, 3=key4
 	keys |= (1 << key_index)
 	keys_changed.emit(keys)
 
@@ -285,7 +258,6 @@ func give_points(points: int) -> void:
 	score += points
 	score_changed.emit(score)
 
-	# Check for extra life
 	while score >= next_extra_life:
 		next_extra_life += EXTRA_LIFE_POINTS
 		give_extra_life()
@@ -295,7 +267,6 @@ func give_extra_life() -> void:
 	if lives < 9:
 		lives += 1
 		lives_changed.emit(lives)
-		# Play 1-up sound
 
 
 # ===== SECRETS SYSTEM =====
@@ -357,12 +328,11 @@ func start_new_game(starting_episode: int = 0, starting_level: int = 0) -> void:
 
 func start_level() -> void:
 	level_stats.start_level()
-	keys = 0  # Keys reset each level
+	keys = 0
 	keys_changed.emit(keys)
 
 
 func complete_level() -> void:
-	# stats for end-of-level screen
 	pass
 
 
@@ -383,7 +353,6 @@ func decrease_view_size() -> void:
 	set_view_size(view_size - 1)
 
 
-# Get viewport dimensions in original 320x200 coordinates
 func get_view_width() -> int:
 	return view_size * 16
 
@@ -392,13 +361,11 @@ func get_view_height() -> int:
 	return int(get_view_width() * HEIGHT_RATIO)
 
 
-# Check if at full size (no borders needed)
 func is_full_size() -> bool:
 	return view_size >= VIEW_SIZE_MAX
 
 
 func _process(_delta: float) -> void:
-	# Handle view size input
 	if Input.is_action_just_pressed("view_increase"):
 		increase_view_size()
 	elif Input.is_action_just_pressed("view_decrease"):
@@ -407,7 +374,6 @@ func _process(_delta: float) -> void:
 
 # ===== SAVE/LOAD GAME STATE =====
 func save_game_state() -> void:
-	# Save player state
 	saved_game_state = {
 		"health": health,
 		"lives": lives,
@@ -433,19 +399,16 @@ func save_game_state() -> void:
 		"pushwalls": []
 	}
 	
-	# Save player position and rotation
 	var player = _get_player()
 	if player:
 		var pos = player.global_position
 		saved_game_state["player_position"] = {"x": pos.x, "y": pos.y, "z": pos.z}
 		saved_game_state["player_rotation"] = player.rotation.y
 	
-	# Save enemies state
 	var enemies = _get_tree_or_null().get_nodes_in_group("enemies") if _get_tree_or_null() else []
 	for enemy in enemies:
 		if enemy and is_instance_valid(enemy):
 			if enemy.is_dead:
-				# Save corpses separately
 				var pos = enemy.global_position
 				saved_game_state["corpses"].append({
 					"position": {"x": pos.x, "y": pos.y, "z": pos.z},
@@ -454,7 +417,6 @@ func save_game_state() -> void:
 					"state": enemy.state
 				})
 			else:
-				# Save living enemies
 				var pos = enemy.global_position
 				saved_game_state["enemies"].append({
 					"position": {"x": pos.x, "y": pos.y, "z": pos.z},
@@ -468,7 +430,6 @@ func save_game_state() -> void:
 					"tiley": enemy.tiley
 				})
 	
-	# Save pickups state (track which ones are collected)
 	var pickups = _get_tree_or_null().get_nodes_in_group("pickups") if _get_tree_or_null() else []
 	for pickup in pickups:
 		if pickup and is_instance_valid(pickup):
@@ -478,7 +439,6 @@ func save_game_state() -> void:
 				"type": pickup.get_meta("pickup_type") if pickup.has_meta("pickup_type") else 0
 			})
 	
-	# Save doors state
 	var doors = _get_tree_or_null().get_nodes_in_group("doors") if _get_tree_or_null() else []
 	for door in doors:
 		if door and is_instance_valid(door):
@@ -491,7 +451,6 @@ func save_game_state() -> void:
 			}
 			saved_game_state["doors"].append(door_data)
 	
-	# Save pushwalls state
 	var pushwalls = _get_tree_or_null().get_nodes_in_group("pushwalls") if _get_tree_or_null() else []
 	for pushwall in pushwalls:
 		if pushwall and is_instance_valid(pushwall) and pushwall.has_method("get_push_state"):

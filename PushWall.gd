@@ -1,18 +1,14 @@
 extends MeshInstance3D
 
-# PushWall - Secret sliding walls (like in original Wolf3D)
-# When activated by player, slides in one direction to reveal secret area
-
 enum State { IDLE, PUSHING }
 var current_state = State.IDLE
 
-var push_speed: float = 0.5  # Slower than doors (original: 256 frames to move 2 tiles)
-var push_distance: float = 0.0  # How far pushed (0.0 to 2.0 tiles)
+var push_speed: float = 0.5
+var push_distance: float = 0.0
 var push_direction: Vector3 = Vector3.ZERO
 var start_pos: Vector3 = Vector3.ZERO
 var grid = null
 
-# Grid position for collision tracking
 var grid_x: int = 0
 var grid_y: int = 0
 
@@ -25,26 +21,21 @@ func _process(delta: float) -> void:
 		push_distance += delta * push_speed
 		position = start_pos + (push_direction * push_distance)
 		
-		# Update grid position for collision detection
 		var current_tile_x = int(floor(position.x))
 		var current_tile_z = int(floor(position.z))
 		
-		# After pushing 2 tiles, stop
 		if push_distance >= 2.0:
 			current_state = State.IDLE
 			push_distance = 2.0
 			position = start_pos + (push_direction * 2.0)
-			# Update final grid position
 			_update_grid_collision(current_tile_x, current_tile_z)
 
 func push(direction: Vector3) -> bool:
 	if current_state == State.PUSHING:
 		return false
 	
-	# Snap direction to cardinal (N, S, E, W) - like original Wolf3D
 	var cardinal_dir = _snap_to_cardinal(direction)
 	
-	# Check if space ahead is clear
 	var check_pos1 = start_pos + cardinal_dir
 	var check_x1 = int(floor(check_pos1.x))
 	var check_z1 = int(floor(check_pos1.z))
@@ -54,7 +45,6 @@ func push(direction: Vector3) -> bool:
 	var check_z2 = int(floor(check_pos2.z))
 	
 	if grid != null:
-		# Check if both tiles ahead are walkable
 		if not _is_tile_walkable(check_x1, check_z1):
 			SoundManager.play_sound(SoundManager.SoundID.NOWAYSND)
 			return false
@@ -63,32 +53,25 @@ func push(direction: Vector3) -> bool:
 			SoundManager.play_sound(SoundManager.SoundID.NOWAYSND)
 			return false
 	
-	# Start pushing
 	current_state = State.PUSHING
 	push_direction = cardinal_dir
 	
-	# Clear current tile collision
 	if grid != null and grid.has_method("clear_tile_collision"):
 		grid.call("clear_tile_collision", grid_x, grid_y)
 	
-	# Increment secret count
 	GameState.increment_secrets_found()
 	
-	# Play push sound
 	SoundManager.play_sound(SoundManager.SoundID.PUSHWALLSND)
 	
 	return true
 
 func _snap_to_cardinal(dir: Vector3) -> Vector3:
-	# Snap to nearest cardinal direction (N, S, E, W)
 	var abs_x = abs(dir.x)
 	var abs_z = abs(dir.z)
 	
 	if abs_x > abs_z:
-		# East or West
 		return Vector3(1, 0, 0) if dir.x > 0 else Vector3(-1, 0, 0)
 	else:
-		# North or South
 		return Vector3(0, 0, 1) if dir.z > 0 else Vector3(0, 0, -1)
 
 func _is_tile_walkable(tx: int, tz: int) -> bool:
@@ -97,15 +80,12 @@ func _is_tile_walkable(tx: int, tz: int) -> bool:
 	
 	var tile_id = grid.tile_at(tx, tz)
 	
-	# Wall tiles block movement
 	if tile_id >= 1 and tile_id <= 53:
 		return false
 	
-	# Door tiles block movement
 	if tile_id >= 90 and tile_id <= 101:
 		return false
 	
-	# Check for other actors
 	var actors = get_tree().get_nodes_in_group("enemies")
 	for actor in actors:
 		var actor_x = int(floor(actor.position.x))
@@ -117,18 +97,14 @@ func _is_tile_walkable(tx: int, tz: int) -> bool:
 
 func _update_grid_collision(new_x: int, new_z: int) -> void:
 	if grid != null and grid.has_method("set_tile_collision"):
-		# Clear old position
 		grid.call("clear_tile_collision", grid_x, grid_y)
-		# Set new position
 		grid.call("set_tile_collision", new_x, new_z, true)
 		grid_x = new_x
 		grid_y = new_z
 
 func is_blocking() -> bool:
-	# Pushwall always blocks - collision is checked at its current position
 	return true
 
-# For save/load system
 func get_push_state() -> Dictionary:
 	return {
 		"grid_x": grid_x,

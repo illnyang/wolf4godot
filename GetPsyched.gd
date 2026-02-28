@@ -1,8 +1,5 @@
-# GetPsyched.gd
-# Wolf3D "Get Psyched!" loading screen with progress bar
 extends CanvasLayer
 
-# Path for VGA fixed-image assets (loaded from user data folder)
 var pics_path: String:
 	get: return GameState.get_pics_path()
 
@@ -19,24 +16,20 @@ func _ready() -> void:
 	
 	_create_ui()
 	
-	# Simulate loading (in real implementation, this would be actual asset loading)
 	_simulate_loading()
 
 func _create_ui() -> void:
-	# Dark teal background (matching original Wolf3D)
 	var bg = ColorRect.new()
 	bg.color = Color(0.0, 0.3, 0.35, 1.0)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	
-	# Get Psyched! image (131_GETPSYCHEDPIC.png)
 	var psyched_texture = _load_pic("131_GETPSYCHEDPIC.png")
 	if psyched_texture:
 		var psyched_rect = TextureRect.new()
 		psyched_rect.texture = psyched_texture
 		psyched_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		psyched_rect.stretch_mode = TextureRect.STRETCH_SCALE
-		# Center it
 		var pic_width = psyched_texture.get_width() * scale_factor
 		var pic_height = psyched_texture.get_height() * scale_factor
 		var window_size = get_viewport().get_visible_rect().size
@@ -44,14 +37,12 @@ func _create_ui() -> void:
 		psyched_rect.size = Vector2(pic_width, pic_height)
 		add_child(psyched_rect)
 		
-		# Progress bar background (red bar below the image)
 		var bar_bg = ColorRect.new()
 		bar_bg.color = Color(0.3, 0.0, 0.0, 1.0)  # Dark red
 		bar_bg.position = Vector2((window_size.x - pic_width) / 2, 80 * scale_factor + pic_height + 4)
 		bar_bg.size = Vector2(pic_width, 8 * scale_factor)
 		add_child(bar_bg)
 		
-		# Progress bar fill (bright red)
 		progress_bar = ColorRect.new()
 		progress_bar.color = Color(1.0, 0.0, 0.0, 1.0)  # Bright red
 		progress_bar.position = bar_bg.position
@@ -67,7 +58,6 @@ func _load_pic(filename: String) -> Texture2D:
 	return null
 
 func _simulate_loading() -> void:
-	# Animate progress bar over 1.5 seconds
 	var tween = create_tween()
 	tween.tween_method(_set_progress, 0.0, 1.0, 1.5)
 	tween.tween_callback(_on_loading_complete)
@@ -75,12 +65,11 @@ func _simulate_loading() -> void:
 func _set_progress(value: float) -> void:
 	progress = value
 	if progress_bar:
-		var max_width = 256 * scale_factor  # Width of Get Psyched image approx
+		var max_width = 256 * scale_factor
 		progress_bar.size.x = max_width * progress
 
 func _on_loading_complete() -> void:
 	loading_complete = true
 	loading_finished.emit()
-	# Wait a moment then remove self
 	await get_tree().create_timer(0.3).timeout
 	queue_free()

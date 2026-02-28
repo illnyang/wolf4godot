@@ -1,21 +1,16 @@
-# GameOver.gd
-# Authentic Wolf3D High Score Board
 extends CanvasLayer
 
 var scale_factor: float = 1.0
 
-# Available assets
 var high_score_texture: Texture2D
 
 func _ready() -> void:
-	# Calculate scale
 	var window_size = get_viewport().get_visible_rect().size
 	scale_factor = window_size.x / 320.0
 	
 	_load_assets()
 	_create_ui()
 	
-	# Play game over sound (death scream)
 	SoundManager.play_sfx("DEATHSCREAM1SND")
 
 func _load_assets() -> void:
@@ -32,20 +27,17 @@ func _load_texture(path: String) -> Texture2D:
 	return null
 
 func _create_ui() -> void:
-	# Dark teal background (matching original Wolf3D view border/vga background)
 	var bg = ColorRect.new()
 	bg.color = Color(0.0, 65.0/255.0, 65.0/255.0)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	
-	# High Score Board Texture
 	if high_score_texture:
 		var board = TextureRect.new()
 		board.texture = high_score_texture
 		board.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		board.stretch_mode = TextureRect.STRETCH_SCALE
 		
-		# Center it
 		var board_w = high_score_texture.get_width() * scale_factor
 		var board_h = high_score_texture.get_height() * scale_factor
 		var window_size = get_viewport().get_visible_rect().size
@@ -53,10 +45,6 @@ func _create_ui() -> void:
 		board.position = Vector2((window_size.x - board_w) / 2, (window_size.y - board_h) / 2)
 		board.size = Vector2(board_w, board_h)
 		add_child(board)
-		
-		# Overlay "GAME OVER" in large red text if desired, or just show the board
-		# In original it was often just the board or a quick flash.
-		# Let's add a "Current Score" entry to the board for the player
 		
 		var score_label = Label.new()
 		score_label.text = "YOUR SCORE: %d\nENTERING HIGH SCORES..." % GameState.score
@@ -67,7 +55,6 @@ func _create_ui() -> void:
 		score_label.size = Vector2(window_size.x, 30 * scale_factor)
 		add_child(score_label)
 	else:
-		# Fallback if texture missing
 		var fail_label = Label.new()
 		fail_label.text = "GAME OVER\nFINAL SCORE: %d" % GameState.score
 		_apply_font(fail_label, 2)
@@ -87,7 +74,6 @@ func _apply_font(label: Label, font_id: int) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey or event is InputEventMouseButton:
 		if event.pressed:
-			# Reset game state and go to main menu
 			GameState.start_new_game()
 			get_tree().change_scene_to_file("res://main.tscn")
 			queue_free()

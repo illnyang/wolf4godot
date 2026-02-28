@@ -10,7 +10,6 @@ extends CharacterBody3D
 @onready var weapon_manager = $CanvasLayer/WeaponUI/AnimatedSprite2D
 const SPEED := 7.0
 const TURN_SPEED := 1.5
-# Weapon fire rates (seconds between shots)
 const FIRE_RATES = {
 	GameState.Weapon.KNIFE: 0.5,
 	GameState.Weapon.PISTOL: 0.2,
@@ -18,11 +17,9 @@ const FIRE_RATES = {
 	GameState.Weapon.CHAINGUN: 0.1,
 }
 
-# Shooting state
 var fire_cooldown: float = 0.0
 var is_firing: bool = false
 var current_weapon_name: String = "pistol"
-# Runtime
 var grid = null
 var tilex: int = 0
 var tiley: int = 0
@@ -41,7 +38,6 @@ func _ready() -> void:
 		weapon_anim.load_external_weapon_animations()
 	weapon_anim.animation_finished.connect(_on_weapon_animation_finished)
 	
-	# Connect to GameState death signal
 	GameState.player_died.connect(die)
 	
 	if map_loader == null:
@@ -61,11 +57,9 @@ func _ready() -> void:
 	_update_weapon_visuals()
 	
 func _physics_process(delta: float) -> void:
-	# Update fire cooldown
 	if fire_cooldown > 0:
 		fire_cooldown -= delta
 	
-	# Handle shooting input
 	if Input.is_action_pressed("shoot"):
 		_try_shoot()
 	
@@ -101,10 +95,9 @@ func _try_shoot() -> void:
 	if weapon_anim.has_method("play_shoot"):
 		weapon_anim.play_shoot(current_weapon_name)
 	
-	# Play weapon sound
 	match weapon:
 		GameState.Weapon.KNIFE:
-			pass  # No knife sound in original Wolf3D
+			pass
 		GameState.Weapon.PISTOL:
 			SoundManager.play_sfx("ATKPISTOLSND")
 		GameState.Weapon.MACHINEGUN:
@@ -144,36 +137,29 @@ func _try_interact() -> void:
 	var tx = int(floor(target_pos.x))
 	var tz = int(floor(target_pos.z))
 	
-	# Check if player is inside elevator (standing on tile adjacent to elevator door)
 	var player_tx = int(floor(position.x))
 	var player_tz = int(floor(position.z))
 	if _is_inside_elevator(player_tx, player_tz):
-		# Check if activating a wall (the elevator switch)
 		var target_tile = grid.tile_at(tx, tz)
 		if map_loader.L1Utils.is_wall(target_tile):
 			_trigger_level_complete()
 			return
 	
-	# Check if player is standing inside a door (can happen when door closes on player)
 	var door_at_player = _find_door_at_tile(player_tx, player_tz)
 	if door_at_player:
 		door_at_player.interact()
 		return
 	
-	# Check for pushwall first
 	var pushwall_node = _find_pushwall_at_tile(tx, tz)
 	if pushwall_node:
-		# Activate pushwall in the direction player is facing
 		pushwall_node.push(forward)
 		return
 	
-	# Then check for doors
 	var door_node = _find_door_at_tile(tx, tz)
 	if door_node:
 		door_node.interact()
 
 func _is_inside_elevator(px: int, pz: int) -> bool:
-	# Check if any adjacent tile is an elevator door
 	for dx in range(-1, 2):
 		for dz in range(-1, 2):
 			if dx == 0 and dz == 0:
@@ -184,16 +170,13 @@ func _is_inside_elevator(px: int, pz: int) -> bool:
 	return false
 
 func _trigger_level_complete() -> void:
-	# Play level done sound
 	SoundManager.play_sfx("LEVELDONESND")
 	
-	# Show level complete screen
 	var level_complete_script = preload("res://LevelComplete.gd")
 	var level_complete = CanvasLayer.new()
 	level_complete.set_script(level_complete_script)
 	get_tree().root.add_child(level_complete)
 	
-	# Pause the game (freeze gameplay while showing stats)
 	get_tree().paused = true
 
 func _find_door_at_tile(tx: int, tz: int) -> Node3D:
@@ -209,7 +192,6 @@ func _find_door_at_tile(tx: int, tz: int) -> Node3D:
 func _find_pushwall_at_tile(tx: int, tz: int) -> Node3D:
 	var all_pushwalls = get_tree().get_nodes_in_group("pushwalls")
 	for pushwall in all_pushwalls:
-		# Check actual current position, not original grid position
 		var pw_pos = pushwall.position
 		var pw_x = int(floor(pw_pos.x))
 		var pw_z = int(floor(pw_pos.z))
@@ -226,12 +208,10 @@ func _attempt_move(offset_3d: Vector3) -> void:
 	var new_x = position.x + offset_3d.x
 	var new_z = position.z + offset_3d.z
 
-	# First check pushwall collisions (they move continuously between tiles)
 	var all_pushwalls = get_tree().get_nodes_in_group("pushwalls")
 	for pushwall in all_pushwalls:
 		if pushwall and is_instance_valid(pushwall):
 			var pw_pos = pushwall.position
-			# Check box collision with pushwall (1x1 box at pw_pos)
 			var closest_x = clamp(new_x, pw_pos.x - 0.5, pw_pos.x + 0.5)
 			var closest_z = clamp(new_z, pw_pos.z - 0.5, pw_pos.z + 0.5)
 			var dx = new_x - closest_x
@@ -239,43 +219,36 @@ func _attempt_move(offset_3d: Vector3) -> void:
 			var dist = sqrt(dx*dx + dz*dz)
 			
 			if dist < radius:
-				# Collision with pushwall - push player back
 				var penetration = radius - dist + skin
 				if dist > 0:
 					new_x = new_x + (dx / dist) * penetration
 					new_z = new_z + (dz / dist) * penetration
 				else:
-					# Player is exactly at pushwall center - push in opposite direction of movement
 					if offset_3d.length() > 0:
 						var push_dir = -offset_3d.normalized()
 						new_x = pw_pos.x + push_dir.x * (radius + skin)
 						new_z = pw_pos.z + push_dir.z * (radius + skin)
 	
-	# Check static object collisions (tables, lamps, columns, etc)
 	var all_static_objects = get_tree().get_nodes_in_group("static_objects")
 	for static_obj in all_static_objects:
 		if static_obj and is_instance_valid(static_obj):
 			var obj_pos = static_obj.position
-			# Check cylinder collision (radius 0.3)
 			var dx = new_x - obj_pos.x
 			var dz = new_z - obj_pos.z
 			var dist = sqrt(dx*dx + dz*dz)
-			var combined_radius = radius + 0.3  # player radius + object radius
+			var combined_radius = radius + 0.3
 			
 			if dist < combined_radius:
-				# Collision with static object - push player back
 				var penetration = combined_radius - dist + skin
 				if dist > 0:
 					new_x = new_x + (dx / dist) * penetration
 					new_z = new_z + (dz / dist) * penetration
 				else:
-					# Player is exactly at object center - push in opposite direction
 					if offset_3d.length() > 0:
 						var push_dir = -offset_3d.normalized()
 						new_x = obj_pos.x + push_dir.x * combined_radius
 						new_z = obj_pos.z + push_dir.z * combined_radius
 
-	# Then check tile-based collisions
 	var min_tx = int(floor(new_x - radius))
 	var max_tx = int(floor(new_x + radius))
 	var min_tz = int(floor(new_z - radius))
@@ -289,11 +262,9 @@ func _attempt_move(offset_3d: Vector3) -> void:
 			var thing_id = grid.thing_at(tx, tz)
 			var is_solid = false
 			
-			# Check if there's a pushwall at this actual position (not original thing_id position)
 			var pushwall = _find_pushwall_at_tile(tx, tz)
 			if pushwall and pushwall.has_method("is_blocking"):
 				is_solid = pushwall.is_blocking()
-			# Only check tile walls if it's NOT an original pushwall position
 			elif not map_loader.L2Utils.is_push_wall(thing_id) and map_loader.L1Utils.is_wall(tile_id):
 				is_solid = true
 			elif map_loader.L1Utils.is_door(tile_id) or map_loader.L1Utils.is_elevator_door(tile_id):
@@ -324,7 +295,6 @@ func _resolve_box_collision(tx: int, tz: int, target_x: float, target_z: float) 
 			position.x = target_x + (dx / dist) * penetration
 			position.z = target_z + (dz / dist) * penetration
 		else:
-			# Player is exactly at tile center - push away from tile center
 			var tile_center_x = tx + 0.5
 			var tile_center_z = tz + 0.5
 			var away_x = position.x - tile_center_x
@@ -332,11 +302,9 @@ func _resolve_box_collision(tx: int, tz: int, target_x: float, target_z: float) 
 			var away_dist = sqrt(away_x * away_x + away_z * away_z)
 			
 			if away_dist > 0.01:
-				# Push in direction away from center
 				position.x = tile_center_x + (away_x / away_dist) * (radius + skin)
 				position.z = tile_center_z + (away_z / away_dist) * (radius + skin)
 			else:
-				# Extremely rare case - push in arbitrary direction (right)
 				position.x = tile_center_x + radius + skin
 				position.z = tile_center_z
 
@@ -352,7 +320,6 @@ func heal(amount: int) -> void:
 func die() -> void:
 	print("Player died")
 	emit_signal("died")
-	# Disable player controls during death - GameState handles level restart
 	set_physics_process(false)
 	set_process_input(false)
 
@@ -360,43 +327,38 @@ func sign(v: float) -> int:
 	return -1 if v < 0 else 1
 
 func _perform_hitscan(damage: int, weapon: GameState.Weapon) -> void:
-	# Raycast from camera center
 	var space_state = get_world_3d().direct_space_state
 	
 	var from = cam.global_position
 	var forward = -cam.global_transform.basis.z
 	
-	# Knife has short range (melee), guns have long range
 	var range = 1.5 if weapon == GameState.Weapon.KNIFE else 100.0
 	var to = from + forward * range
 	
-	# First do physics raycast to find what we actually hit
 	var query = PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 2  # Layer 2 = enemies (as set in Enemy.tscn)
+	query.collision_mask = 2
 	query.collide_with_areas = true
 	
 	var result = space_state.intersect_ray(query)
 	
 	if result and result.collider:
-		# We hit something - now check if line to HIT POSITION is clear
 		var hit_position = result.position
 		if not _check_shot_line(from, hit_position):
 			return
 		
-		# Check if it's an enemy
 		if result.collider.is_in_group("enemies"):
-			# Apply damage to the enemy
 			if result.collider.has_method("take_damage"):
 				result.collider.take_damage(damage)
 	else:
-		# Didn't hit anything with physics raycast - check if path is clear anyway
+		if not _check_shot_line(from, to):
+			return
 		if not _check_shot_line(from, to):
 			return
 
 func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 	"""Check if shot line is blocked by walls or closed doors"""
 	if not grid or not map_loader:
-		return true  # No grid = no collision check
+		return true
 	
 	# Bresenham's line algorithm to check tiles between from and to
 	var x0 = int(floor(from.x))
@@ -414,7 +376,6 @@ func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 	var z = z0
 	
 	while true:
-		# Check current tile (skip starting tile where player stands)
 		if not (x == x0 and z == z0):
 			if not grid.is_within_grid(x, z):
 				return false
@@ -423,36 +384,26 @@ func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 			var thing_id = grid.thing_at(x, z)
 			var is_air = map_loader.is_air(x, z)
 			
-			# Use map_loader.is_air() to check if this tile is solid
 			if not is_air:
-				# This is a solid wall - but check if pushwall is still there
 				if thing_id == 98:
-					# Pushwall location - check if it moved away
 					var pushwall = _find_pushwall_at_tile(x, z)
 					if not pushwall:
-						# Pushwall moved away, don't block
 						pass
 					else:
-						# Pushwall is here, blocks shot
 						return false
 				else:
-					# Regular solid wall
 					return false
 			
-			# Check for doors separately
 			if tile_id >= 90 and tile_id <= 101:
 				var door = _find_door_at_tile(x, z)
 				if door:
-					# Check door's open_ratio - bullets can pass through doors that are 30%+ open
 					var open_ratio = door.get("open_ratio")
 					if open_ratio != null and open_ratio < 0.3:
 						return false
 		
-		# Reached target
 		if x == x1 and z == z1:
 			break
 		
-		# Step to next tile
 		var e2 = 2 * err
 		if e2 > -dz:
 			err -= dz
@@ -463,7 +414,6 @@ func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 	
 	return true
 
-# Uncomment to run FPS benchmark:
 func _start_benchmark():
 	var PerfMonitor = preload("res://tests/performance_monitor.gd")
 	var perf = PerfMonitor.new()

@@ -10,9 +10,7 @@ func _input(event):
 		return_to_menu()
 
 func return_to_menu():
-	# Save current game state before going to menu
 	GameState.save_game_state()
 	
-	# Return to main menu instead of quitting
 	GameState.menu_from_game = true
 	get_tree().change_scene_to_file("res://MainMenu.tscn")

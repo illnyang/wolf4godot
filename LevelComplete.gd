@@ -1,21 +1,15 @@
-# LevelComplete.gd
-# Wolf3D Level Completion Screen - Authentic 1:1 recreation
 extends CanvasLayer
 
-# Path for VGA fixed-image assets (loaded from user data folder)
 var pics_path: String:
 	get: return GameState.get_pics_path()
 
-# Original Wolf3D resolution
 const ORIG_WIDTH = 320
 const ORIG_HEIGHT = 200
 const STATUS_BAR_Y = 160
 
-# Character sizes
 const CHAR_WIDTH = 16
 const CHAR_SMALL = 8
 
-# Status bar positions (relative to status bar origin)
 const POS_LEVEL_X = 16
 const POS_SCORE_X = 48
 const POS_LIVES_X = 112
@@ -24,11 +18,9 @@ const POS_HEALTH_X = 168
 const POS_AMMO_X = 216
 const POS_NUMBER_Y = 16
 
-# Animation state
 enum Phase { TIME_BONUS, KILL_RATIO, SECRET_RATIO, TREASURE_RATIO, DONE }
 var current_phase: Phase = Phase.TIME_BONUS
 
-# Assets
 var char_pics: Dictionary = {}
 var hud_digit_textures: Array[Texture2D] = []
 var face_textures: Array[Texture2D] = []
@@ -36,7 +28,6 @@ var weapon_textures: Array[Texture2D] = []
 var bj_textures: Array[Texture2D] = []
 var statusbar_texture: Texture2D
 
-# UI Nodes
 var scale_factor: float = 2.0
 var bj_sprite: TextureRect
 var statusbar_rect: TextureRect
@@ -49,13 +40,11 @@ var hud_level_digits: Array[TextureRect] = []
 var hud_face: TextureRect
 var hud_weapon: TextureRect
 
-# Labels for the summary text (to avoid re-creating nodes)
 var label_bonus: Node2D
 var label_kill: Node2D
 var label_secret: Node2D
 var label_treasure: Node2D
 
-# Stats
 var floor_num: int = 1
 var final_time_taken: float = 0.0
 var final_kill_ratio: int = 0
@@ -69,7 +58,6 @@ var display_kill: int = 0
 var display_secret: int = 0
 var display_treasure: int = 0
 
-# Animation timers
 var bj_timer: float = 0.0
 var bj_frame: int = 0
 var count_timer: float = 0.0
@@ -78,7 +66,6 @@ func _ready() -> void:
 	process_mode = PROCESS_MODE_ALWAYS
 	layer = 100
 	
-	# With project resolution fixed to 1152x720, scale_factor is exactly 3.6
 	var window_size = get_viewport().get_visible_rect().size
 	scale_factor = window_size.y / float(ORIG_HEIGHT)
 	
@@ -89,7 +76,6 @@ func _ready() -> void:
 	SoundManager.play_sfx("LEVELDONESND")
 
 func _load_assets() -> void:
-	# Large numbers 0-9
 	for i in range(10):
 		char_pics[str(i)] = _load_pic("%03d_L_NUM%dPIC.png" % [42 + i, i])
 	char_pics[":"] = _load_pic("041_L_COLONPIC.png")
@@ -98,25 +84,20 @@ func _load_assets() -> void:
 		var L = char("A".unicode_at(0) + i)
 		char_pics[L] = _load_pic("%03d_L_%sPIC.png" % [53 + i, L])
 	
-	# HUD digits 0-9 (+ blank)
 	hud_digit_textures.append(_load_pic("095_N_BLANKPIC.png"))
 	for i in range(10):
 		hud_digit_textures.append(_load_pic("%03d_N_%dPIC.png" % [96 + i, i]))
 	
-	# BJ Face textures (just a few for the HUD)
 	for i in range(3):
 		face_textures.append(_load_pic("%03d_FACE1%sPIC.png" % [106 + i, ["A","B","C"][i]]))
 	
-	# BJ Breathing pics
 	bj_textures.append(_load_pic("040_L_GUYPIC.png"))
 	bj_textures.append(_load_pic("081_L_GUY2PIC.png"))
 	if bj_textures.size() >= 2:
 		print("LevelComplete: Loaded BJ textures: ", bj_textures[0].get_size(), " and ", bj_textures[1].get_size())
 	
-	# Status bar background
 	statusbar_texture = _load_pic("083_STATUSBARPIC.png")
 	
-	# Weapons for HUD
 	weapon_textures.append(_load_pic("088_KNIFEPIC.png"))
 	weapon_textures.append(_load_pic("089_GUNPIC.png"))
 	weapon_textures.append(_load_pic("090_MACHINEGUNPIC.png"))
@@ -143,13 +124,11 @@ func _create_ui() -> void:
 	var win_w = get_viewport().get_visible_rect().size.x
 	var win_h = get_viewport().get_visible_rect().size.y
 	
-	# Background (fills the summary area - top 80%)
 	var bg = ColorRect.new()
 	bg.color = Color(0.0, 65.0/255.0, 65.0/255.0, 1.0)
 	bg.size = Vector2(win_w, 160 * scale_factor)
 	add_child(bg)
 	
-	# BJ Breathing Sprite
 	bj_sprite = TextureRect.new()
 	bj_sprite.texture = bj_textures[0]
 	bj_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -158,11 +137,9 @@ func _create_ui() -> void:
 	bj_sprite.size = Vector2(bj_textures[0].get_width() * scale_factor, bj_textures[0].get_height() * scale_factor)
 	add_child(bj_sprite)
 	
-	# Text Container
 	text_container = Control.new()
 	add_child(text_container)
 	
-	# Static Text - using 320x200 grid
 	_write(14, 2, "FLOOR")
 	_write(14, 4, "COMPLETED")
 	_write(26, 2, str(floor_num))
@@ -177,13 +154,11 @@ func _create_ui() -> void:
 	_write(5, 16, "SECRET RATIO")
 	_write(1, 18, "TREASURE RATIO")
 	
-	# Dynamic Text Labels (placeholders)
 	label_bonus = _create_align_group(36, 7)
 	label_kill = _create_align_group(37, 14)
 	label_secret = _create_align_group(37, 16)
 	label_treasure = _create_align_group(37, 18)
 	
-	# Status Bar Replica at the bottom
 	statusbar_rect = TextureRect.new()
 	statusbar_rect.texture = statusbar_texture
 	statusbar_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -192,14 +167,12 @@ func _create_ui() -> void:
 	statusbar_rect.position = Vector2(0, 160 * scale_factor)
 	add_child(statusbar_rect)
 	
-	# HUD Numbers
 	hud_score_digits = _create_hud_digits(POS_SCORE_X, 6)
 	hud_level_digits = _create_hud_digits(POS_LEVEL_X, 2)
 	hud_lives_digit = _create_hud_digits(POS_LIVES_X, 1)[0]
 	hud_health_digits = _create_hud_digits(POS_HEALTH_X, 3)
 	hud_ammo_digits = _create_hud_digits(POS_AMMO_X, 2)
 	
-	# HUD Icons
 	hud_face = TextureRect.new()
 	hud_face.texture = face_textures[0]
 	hud_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -216,7 +189,6 @@ func _create_ui() -> void:
 	hud_weapon.size = Vector2(48 * scale_factor, 24 * scale_factor)
 	statusbar_rect.add_child(hud_weapon)
 	
-	# Initial draw
 	_update_summary()
 	_update_hud()
 
@@ -291,14 +263,12 @@ func _latch_hud(digits: Array[TextureRect], width: int, number: int) -> void:
 		si += 1
 
 func _process(delta: float) -> void:
-	# BJ Breathing
 	bj_timer += delta
 	if bj_timer >= 0.5:
 		bj_timer = 0.0
 		bj_frame = (bj_frame + 1) % bj_textures.size()
 		bj_sprite.texture = bj_textures[bj_frame]
 	
-	# Counting
 	if current_phase == Phase.DONE: return
 	
 	count_timer += delta

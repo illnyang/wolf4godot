@@ -1,36 +1,27 @@
-# TitleScreen.gd
-# Authentic Wolf3D title sequence: Signon → PG13 → Title Loop
 extends Control
 
-# Original Wolf3D coordinates (320x200 VGA)
 const ORIG_WIDTH = 320
 const ORIG_HEIGHT = 200
 
-# Colors from Wolf3D palette
-const COLOR_BACKGROUND = Color(138.0/255.0, 0.0, 0.0)  # Red background
-const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)  # Yellow
+const COLOR_BACKGROUND = Color(138.0/255.0, 0.0, 0.0)
+const COLOR_HIGHLIGHT = Color(1.0, 1.0, 0.0)
 const COLOR_TEXT = Color(0.9, 0.9, 0.9)
 const COLOR_GREEN = Color(0.0, 0.8, 0.0)
 
-# Title sequence states
 enum TitleState { SIGNON, PG13, TITLE, CREDITS, HIGHSCORES }
 var current_state: TitleState = TitleState.SIGNON
 
-# Timing (in seconds)
 const PG13_DURATION = 5.0
 const TITLE_DURATION = 10.0
 const CREDITS_DURATION = 7.0
 const HIGHSCORES_DURATION = 7.0
 
-# Scale and centering
 var scale_factor: float = 1.0
 var center_offset_x: float = 0.0
 var center_offset_y: float = 0.0
 
-# Loaded textures
 var pics: Dictionary = {}
 
-# UI nodes
 var background: TextureRect
 var content_container: Control
 var state_timer: float = 0.0
@@ -39,12 +30,10 @@ var fading_out: bool = false
 var fading_in: bool = false
 var next_state_after_fade: TitleState = TitleState.TITLE
 
-# For signon "working" display
 var signon_key_pressed: bool = false
 
 
 func _ready() -> void:
-	# Wait for extraction
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
@@ -53,7 +42,7 @@ func _ready() -> void:
 	_create_ui()
 	
 	if GameState.skip_to_title_loop:
-		GameState.skip_to_title_loop = false  # Reset for next time
+		GameState.skip_to_title_loop = false
 		_show_title()
 	else:
 		_show_signon()
@@ -91,7 +80,6 @@ func _load_pics() -> void:
 		if texture:
 			pics[pic_name] = texture
 	
-	# Load signon from the signon folder
 	var signon_path = GameState.get_asset_path() + "signon/SIGNON.png"
 	var signon_texture = _load_texture(signon_path)
 	if signon_texture:
@@ -115,7 +103,6 @@ func _load_texture(path: String) -> Texture2D:
 
 
 func _create_ui() -> void:
-	# Background for screens
 	background = TextureRect.new()
 	background.name = "Background"
 	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -123,7 +110,6 @@ func _create_ui() -> void:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 	
-	# Container for dynamic content
 	content_container = Control.new()
 	content_container.name = "ContentContainer"
 	content_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -141,7 +127,6 @@ func _show_signon() -> void:
 	signon_key_pressed = false
 	_clear_content()
 	
-	# Try to display the actual signon image
 	if pics.has("SIGNON"):
 		var signon_rect = TextureRect.new()
 		signon_rect.texture = pics["SIGNON"]
@@ -151,7 +136,6 @@ func _show_signon() -> void:
 		signon_rect.stretch_mode = TextureRect.STRETCH_SCALE
 		content_container.add_child(signon_rect)
 	else:
-		# Fallback: create a simple placeholder screen
 		var bg = ColorRect.new()
 		bg.color = COLOR_BACKGROUND
 		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -166,7 +150,6 @@ func _show_signon() -> void:
 		title_label.size = Vector2(get_viewport().get_visible_rect().size.x, 30 * scale_factor)
 		content_container.add_child(title_label)
 	
-	# "Press a key" text (overlaid on the signon image)
 	var press_label = Label.new()
 	press_label.name = "PressLabel"
 	press_label.text = "Press a key"
@@ -184,35 +167,27 @@ func _show_pg13() -> void:
 	state_timer = 0.0
 	_clear_content()
 	
-	# Play PG13 music
 	MusicManager.play_track("NAZI_NOR")
 	
-	# Clear background texture - we'll use a blue ColorRect instead
 	background.texture = null
 	
-	# Create solid blue background (matching original Wolf3D PG13 screen)
-	# Color is a vibrant blue similar to the original: RGB(30, 144, 255) or close
 	var bg = ColorRect.new()
-	bg.color = Color8(32, 170, 255)  # Dodger blue - matches reference
+	bg.color = Color8(32, 170, 255)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content_container.add_child(bg)
 	
-	# Show PG13 pic as small overlay in lower-right corner
 	if pics.has("PG13PIC"):
 		var pg13_rect = TextureRect.new()
 		pg13_rect.texture = pics["PG13PIC"]
 		pg13_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		pg13_rect.stretch_mode = TextureRect.STRETCH_SCALE
 		
-		# Get the actual texture dimensions
 		var tex_width = pics["PG13PIC"].get_width()
 		var tex_height = pics["PG13PIC"].get_height()
 		
-		# Scale the PG13 image to fit nicely (original is ~150x80)
 		var scaled_width = tex_width * scale_factor
 		var scaled_height = tex_height * scale_factor
 		
-		# Position in lower-right corner with some padding
 		var padding = 16 * scale_factor
 		var pos_x = center_offset_x + (ORIG_WIDTH * scale_factor) - scaled_width - padding
 		var pos_y = center_offset_y + (ORIG_HEIGHT * scale_factor) - scaled_height - padding
@@ -221,7 +196,6 @@ func _show_pg13() -> void:
 		pg13_rect.size = Vector2(scaled_width, scaled_height)
 		content_container.add_child(pg13_rect)
 	else:
-		# Fallback: show text if image not available
 		var pg_label = Label.new()
 		pg_label.text = "THIS GAME IS RATED PG-13"
 		pg_label.add_theme_font_size_override("font_size", int(16 * scale_factor))
@@ -237,9 +211,7 @@ func _show_title() -> void:
 	current_state = TitleState.TITLE
 	state_timer = 0.0
 	_clear_content()
-	
-	# Start title music (INTROSONG) - REMOVED, triggered by button press
-	
+		
 	if pics.has("TITLEPIC"):
 		background.texture = pics["TITLEPIC"]
 
@@ -264,7 +236,6 @@ func _show_highscores() -> void:
 	if pics.has("HIGHSCORESPIC"):
 		background.texture = pics["HIGHSCORESPIC"]
 	else:
-		# Fallback
 		background.texture = null
 		var bg = ColorRect.new()
 		bg.color = COLOR_BACKGROUND
@@ -292,7 +263,7 @@ func _start_fade_to(next_state: TitleState) -> void:
 func _process(delta: float) -> void:
 	# Handle fading
 	if fading_out:
-		fade_alpha -= delta * 2.0  # Fade out speed
+		fade_alpha -= delta * 2.0
 		if fade_alpha <= 0.0:
 			fade_alpha = 0.0
 			fading_out = false
@@ -303,7 +274,7 @@ func _process(delta: float) -> void:
 		return
 	
 	if fading_in:
-		fade_alpha += delta * 2.0  # Fade in speed
+		fade_alpha += delta * 2.0
 		if fade_alpha >= 1.0:
 			fade_alpha = 1.0
 			fading_in = false
@@ -311,7 +282,6 @@ func _process(delta: float) -> void:
 		content_container.modulate = Color(1, 1, 1, fade_alpha)
 		return
 	
-	# Handle automatic transitions
 	if current_state == TitleState.PG13:
 		state_timer += delta
 		if state_timer >= PG13_DURATION:
@@ -345,7 +315,6 @@ func _transition_to_state(state: TitleState) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Ignore input during fades
 	if fading_out or fading_in:
 		return
 	
@@ -362,20 +331,16 @@ func _input(event: InputEvent) -> void:
 		TitleState.SIGNON:
 			if not signon_key_pressed:
 				signon_key_pressed = true
-				# Change "Press a key" to "Working..."
 				var press_label = content_container.get_node_or_null("PressLabel")
 				if press_label:
 					press_label.text = "Working..."
-				# Short delay then go to PG13
 				await get_tree().create_timer(0.5).timeout
 				_start_fade_to(TitleState.PG13)
 		
 		TitleState.PG13:
-			# Key press goes DIRECTLY to options (second push button -> options)
 			MusicManager.play_track("WONDERIN")
 			get_tree().change_scene_to_file("res://MainMenu.tscn")
 		
 		TitleState.TITLE, TitleState.CREDITS, TitleState.HIGHSCORES:
-			# Any key during title loop goes to main menu
 			MusicManager.play_track("WONDERIN")
 			get_tree().change_scene_to_file("res://MainMenu.tscn")

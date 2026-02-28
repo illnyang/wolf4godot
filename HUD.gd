@@ -1,66 +1,53 @@
-# Original C code logic from WL_AGENT.C
 extends CanvasLayer
 
-# Path for VGA fixed-image assets (loaded from user data folder)
 var pics_path: String:
 	get: return GameState.get_pics_path()
 
-# Original Wolf3D status bar positions (320x200 VGA resolution)
-# These are character/tile positions, each tile is 8x8 pixels in original
-const STATUS_BAR_Y = 160  # Y position where status bar starts (bottom of 200-pixel screen)
+const STATUS_BAR_Y = 160
 
-# Position mappings from original C code (in 8-pixel units for LatchNumber)
-# Converted to pixel positions within status bar
-const POS_LEVEL_X = 16    # Level number
-const POS_SCORE_X = 48    # Score 
-const POS_LIVES_X = 112   # Lives
-const POS_HEALTH_X = 168  # Health
-const POS_AMMO_X = 216    # Ammo
-const POS_FACE_X = 136    # BJ face
+const POS_LEVEL_X = 16
+const POS_SCORE_X = 48
+const POS_LIVES_X = 112
+const POS_HEALTH_X = 168
+const POS_AMMO_X = 216
+const POS_FACE_X = 136
 const POS_FACE_Y = 4
-const POS_WEAPON_X = 256  # Weapon icon
-const POS_KEYS_X = 240    # Keys
+const POS_WEAPON_X = 256 
+const POS_KEYS_X = 240
 const POS_KEYS_Y = 4
-const POS_NUMBER_Y = 16   # Y offset for numbers within status bar
+const POS_NUMBER_Y = 16
 
-# Scale factor for rendering (original was 320x200, we'll scale up)
 var scale_factor: float = 2.0
 
-# Loaded textures
 var statusbar_texture: Texture2D
-var digit_textures: Array[Texture2D] = []  # 0-9 plus blank
-var face_textures: Array[Texture2D] = []   # 24 faces (8 health levels x 3 variations)
-var weapon_textures: Array[Texture2D] = [] # 4 weapons
-var key_textures: Array[Texture2D] = []    # no key, gold, silver
+var digit_textures: Array[Texture2D] = []
+var face_textures: Array[Texture2D] = []
+var weapon_textures: Array[Texture2D] = []
+var key_textures: Array[Texture2D] = []
 
-# UI Nodes
 var statusbar_rect: TextureRect
 var face_rect: TextureRect
 var weapon_rect: TextureRect
 var gold_key_rect: TextureRect
 var silver_key_rect: TextureRect
-var number_container: Control  # Container for digit sprites
+var number_container: Control
 
-# Number display nodes - arrays of TextureRects for each stat
 var level_digits: Array[TextureRect] = []
 var score_digits: Array[TextureRect] = []
 var lives_digits: Array[TextureRect] = []
 var health_digits: Array[TextureRect] = []
 var ammo_digits: Array[TextureRect] = []
 
-# Face animation (from original: faceframe changes randomly every ~70 tics)
-# Original ran at 70Hz (70 ticks per second)
 const TICKS_PER_SECOND = 70.0
-const FACETICS = 70  # Maximum tics before face change
-var face_time_accumulator: float = 0.0  # Time accumulator for tick conversion
-var facecount: int = 0  # Converted tick count
-var faceframe: int = 0  # 0, 1, or 2 for face variation (A, B, C)
-var got_gatling: bool = false  # Special gatling pickup face
+const FACETICS = 70
+var face_time_accumulator: float = 0.0
+var facecount: int = 0
+var faceframe: int = 0
+var got_gatling: bool = false
 
 func _ready() -> void:
 	print("WolfHUD: Loading authentic Wolf3D status bar...")
 	
-	# Wait for assets if needed
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
@@ -72,10 +59,8 @@ func _ready() -> void:
 	print("WolfHUD: Status bar ready!")
 
 func _load_assets() -> void:
-	# Load status bar background
 	statusbar_texture = _load_pic("083_STATUSBARPIC.png")
 	
-	# Load digit textures (blank = index 0, then 0-9 = index 1-10)
 	digit_textures.append(_load_pic("095_N_BLANKPIC.png"))  # Blank
 	for i in range(10):
 		var pic = _load_pic("%03d_N_%dPIC.png" % [96 + i, i])
@@ -84,31 +69,25 @@ func _load_assets() -> void:
 			push_error("WolfHUD: Failed to load digit %d" % i)
 	print("WolfHUD: Loaded %d digit textures" % digit_textures.size())
 	
-	# Load face textures (8 health levels x 3 variations = 24 faces)
-	# FACE1A=106, FACE1B=107, FACE1C=108, FACE2A=109... FACE8A=127
 	for i in range(8):
 		for j in ["A", "B", "C"]:
 			var idx = 106 + (i * 3) + (["A", "B", "C"].find(j))
 			face_textures.append(_load_pic("%03d_FACE%d%sPIC.png" % [idx, i + 1, j]))
 	
-	# Load weapon textures
 	weapon_textures.append(_load_pic("088_KNIFEPIC.png"))
 	weapon_textures.append(_load_pic("089_GUNPIC.png"))
 	weapon_textures.append(_load_pic("090_MACHINEGUNPIC.png"))
 	weapon_textures.append(_load_pic("091_GATLINGGUNPIC.png"))
 	
-	# Load key textures
 	key_textures.append(_load_pic("092_NOKEYPIC.png"))
 	key_textures.append(_load_pic("093_GOLDKEYPIC.png"))
 	key_textures.append(_load_pic("094_SILVERKEYPIC.png"))
 
 func _load_pic(filename: String) -> Texture2D:
 	var path = pics_path + filename
-	# For res:// paths, try using load() first (works with imported resources)
 	var texture = load(path) as Texture2D
 	if texture:
 		return texture
-	# Fallback to loading image directly
 	var image = Image.load_from_file(path)
 	if image:
 		return ImageTexture.create_from_image(image)
@@ -117,11 +96,9 @@ func _load_pic(filename: String) -> Texture2D:
 		return null
 
 func _create_ui() -> void:
-	# Calculate scale based on window size
 	var window_size = get_viewport().get_visible_rect().size
 	scale_factor = window_size.x / 320.0
 	
-	# Create status bar background
 	statusbar_rect = TextureRect.new()
 	statusbar_rect.texture = statusbar_texture
 	statusbar_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -130,25 +107,21 @@ func _create_ui() -> void:
 	statusbar_rect.position = Vector2(0, window_size.y - 40 * scale_factor)
 	add_child(statusbar_rect)
 	
-	# Container for all number/icon overlays (child of status bar for relative positioning)
 	number_container = Control.new()
 	statusbar_rect.add_child(number_container)
 	
-	# Create digit TextureRects for each stat
-	level_digits = _create_digit_group(2)   # 2 digits
-	score_digits = _create_digit_group(6)   # 6 digits
-	lives_digits = _create_digit_group(1)   # 1 digit
-	health_digits = _create_digit_group(3)  # 3 digits
-	ammo_digits = _create_digit_group(2)    # 2 digits
+	level_digits = _create_digit_group(2)
+	score_digits = _create_digit_group(6)
+	lives_digits = _create_digit_group(1)
+	health_digits = _create_digit_group(3)
+	ammo_digits = _create_digit_group(2)
 	
-	# Position digit groups
 	_position_digits(level_digits, POS_LEVEL_X)
 	_position_digits(score_digits, POS_SCORE_X)
 	_position_digits(lives_digits, POS_LIVES_X)
 	_position_digits(health_digits, POS_HEALTH_X)
 	_position_digits(ammo_digits, POS_AMMO_X)
 	
-	# Create face display
 	face_rect = TextureRect.new()
 	face_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	face_rect.stretch_mode = TextureRect.STRETCH_SCALE
@@ -156,7 +129,6 @@ func _create_ui() -> void:
 	face_rect.custom_minimum_size = Vector2(24 * scale_factor, 32 * scale_factor)
 	number_container.add_child(face_rect)
 	
-	# Create weapon display
 	weapon_rect = TextureRect.new()
 	weapon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	weapon_rect.stretch_mode = TextureRect.STRETCH_SCALE
@@ -164,7 +136,6 @@ func _create_ui() -> void:
 	weapon_rect.custom_minimum_size = Vector2(24 * scale_factor, 32 * scale_factor)
 	number_container.add_child(weapon_rect)
 	
-	# Create key displays
 	gold_key_rect = TextureRect.new()
 	gold_key_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	gold_key_rect.stretch_mode = TextureRect.STRETCH_SCALE
@@ -214,7 +185,6 @@ func _update_all() -> void:
 	_draw_keys()
 
 # ===== Original Wolf3D LatchNumber implementation =====
-# Right justifies and pads with blanks
 func _latch_number(digits: Array[TextureRect], width: int, number: int) -> void:
 	if digit_textures.size() < 11:
 		push_error("WolfHUD: Not enough digit textures loaded: %d" % digit_textures.size())
@@ -223,25 +193,23 @@ func _latch_number(digits: Array[TextureRect], width: int, number: int) -> void:
 	var str_num = str(number)
 	var length = str_num.length()
 	
-	# Pad with blanks from left
 	var digit_idx = 0
 	while digit_idx < width - length:
 		if digit_idx < digits.size():
-			digits[digit_idx].texture = digit_textures[0]  # Blank
+			digits[digit_idx].texture = digit_textures[0]
 		digit_idx += 1
 	
-	# Draw digits
 	var str_idx = 0
 	if length > width:
-		str_idx = length - width  # Skip leading digits if number too large
+		str_idx = length - width
 	
 	while str_idx < length and digit_idx < digits.size():
 		var digit_char = str_num[str_idx]
-		var digit_value = digit_char.unicode_at(0) - 48  # '0' = 48 in ASCII
+		var digit_value = digit_char.unicode_at(0) - 48
 		if digit_value >= 0 and digit_value <= 9:
-			digits[digit_idx].texture = digit_textures[digit_value + 1]  # +1 because index 0 is blank
+			digits[digit_idx].texture = digit_textures[digit_value + 1]
 		else:
-			digits[digit_idx].texture = digit_textures[0]  # Blank for non-digits
+			digits[digit_idx].texture = digit_textures[0]
 		digit_idx += 1
 		str_idx += 1
 
@@ -254,7 +222,6 @@ func _draw_score(score: int) -> void:
 	_latch_number(score_digits, 6, score)
 
 func _draw_lives(lives: int) -> void:
-	# Clamp to 0 minimum (don't show negative during game over)
 	_latch_number(lives_digits, 1, max(lives, 0))
 
 func _draw_health(health: int) -> void:
@@ -264,7 +231,6 @@ func _draw_ammo(ammo: int) -> void:
 	_latch_number(ammo_digits, 2, ammo)
 
 # ===== Face System (from original WL_AGENT.C) =====
-# Formula: FACE1APIC + 3*((100-health)/16) + faceframe
 func _draw_face() -> void:
 	if face_textures.is_empty():
 		return
@@ -272,34 +238,25 @@ func _draw_face() -> void:
 	var health = GameState.health
 	
 	if health <= 0:
-		# Dead face (FACE8A = index 21)
 		face_rect.texture = face_textures[21]
 	elif got_gatling:
-		# Special gatling pickup face - use happy face with wide eyes
 		face_rect.texture = face_textures[0]  # FACE1A
 	else:
-		# Calculate face index based on health
-		# Original: 3 * ((100 - health) / 16) + faceframe
 		var health_level = clampi((100 - health) / 16, 0, 7)
 		var face_idx = (health_level * 3) + faceframe
 		face_idx = clampi(face_idx, 0, face_textures.size() - 1)
 		face_rect.texture = face_textures[face_idx]
 
-# Update face animation (called from _process)
-# Convert real time to original 70Hz ticks
 func _update_face(delta: float) -> void:
 	face_time_accumulator += delta
 	
-	# Convert accumulated time to ticks (70Hz)
 	var ticks_to_add = int(face_time_accumulator * TICKS_PER_SECOND)
 	if ticks_to_add > 0:
 		facecount += ticks_to_add
 		face_time_accumulator -= float(ticks_to_add) / TICKS_PER_SECOND
 	
-	# Original logic: if facecount > random(0-69), change face
 	if facecount > randi() % FACETICS:
 		faceframe = randi() % 3
-		# Note: original code had bug where faceframe could be 3, fixed here
 		facecount = 0
 		_draw_face()
 
@@ -315,16 +272,15 @@ func _draw_keys() -> void:
 	if key_textures.is_empty():
 		return
 	
-	# Gold key = bit 0, Silver key = bit 1
 	if GameState.has_key(0):
-		gold_key_rect.texture = key_textures[1]  # Gold
+		gold_key_rect.texture = key_textures[1]
 	else:
-		gold_key_rect.texture = key_textures[0]  # No key
+		gold_key_rect.texture = key_textures[0]
 	
 	if GameState.has_key(1):
-		silver_key_rect.texture = key_textures[2]  # Silver
+		silver_key_rect.texture = key_textures[2]
 	else:
-		silver_key_rect.texture = key_textures[0]  # No key
+		silver_key_rect.texture = key_textures[0]
 
 # ===== Signal Handlers =====
 
@@ -349,10 +305,7 @@ func _on_weapon_changed(new_weapon: GameState.Weapon) -> void:
 	_draw_weapon()
 
 func _on_player_died() -> void:
-	# Force death face immediately
 	_draw_face()
-
-# ===== Process for face animation =====
 
 func _process(delta: float) -> void:
 	_update_face(delta)

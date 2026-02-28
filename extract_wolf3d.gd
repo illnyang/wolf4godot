@@ -1,14 +1,12 @@
 extends Node
 
 # Wolf3D Asset Extractor - Runs at game start
-
 const NEARTAG = 0xA7
 const FARTAG = 0xA8
 const RLEW_TAG = 0xABCD
 const MAP_SIZE = 64
 const TEXTURE_SIZE = 64
 
-# Helper function for signed 16-bit reads
 static func decode_s16(data: PackedByteArray, offset: int) -> int:
 	var unsigned = data.decode_u16(offset)
 	if unsigned >= 32768:
@@ -16,7 +14,6 @@ static func decode_s16(data: PackedByteArray, offset: int) -> int:
 	return unsigned
 
 
-# Game configurations
 enum GameType { WOLF3D, SOD, BLAKE_STONE }
 
 var game_configs = {
@@ -40,25 +37,21 @@ var game_configs = {
 	}
 }
 
-# Current extraction paths (set during extraction)
 var current_data_path: String = ""
 var current_extension: String = ""
 var current_output_path: String = ""
 
-# Legacy variable aliases (for backward compatibility with Blake Stone code)
 var output_path: String:
 	get: return current_output_path
 var texture_output_path: String:
 	get: return current_output_path
 
-# Available games after detection
 var available_games: Array[GameType] = []
 
 var extraction_complete = false
 
 signal extraction_finished()
 
-# Wolf3D VGA Palette (6-bit RGB converted to 8-bit)
 var WOLF_PALETTE = [
 	[0,0,0],[0,0,170],[0,170,0],[0,170,170],[170,0,0],[170,0,170],[170,85,0],[170,170,170],
 	[85,85,85],[85,85,255],[85,255,85],[85,255,255],[255,85,85],[255,85,255],[255,255,85],[255,255,255],
@@ -98,10 +91,8 @@ var WOLF_PALETTE = [
 func _ready():
 	print("=== AssetExtractor Starting ===")
 	
-	# Detect available games
 	_detect_available_games()
 	
-	# Extract all available games
 	for game_type in available_games:
 		var config = game_configs[game_type]
 		if not _already_extracted_game(config.output):
@@ -109,7 +100,6 @@ func _ready():
 			_extract_game(game_type)
 		else:
 			print("%s assets already extracted, checking for new assets..." % config.name)
-			# Still try to extract signon and demos if they don't exist
 			_extract_missing_assets(game_type)
 	
 	print("=== Extraction Complete ===")
@@ -126,7 +116,6 @@ func _detect_available_games() -> void:
 			var vswap_path = path.path_join("VSWAP" + config.extension)
 			if FileAccess.file_exists(vswap_path):
 				print("Found %s data files in: %s" % [config.name.to_upper(), path])
-				# Update current path in config for extraction
 				config.data_path = path
 				available_games.append(game_type)
 				break
@@ -170,17 +159,14 @@ func _extract_game(game_type: GameType) -> void:
 
 
 func _extract_missing_assets(game_type: GameType) -> void:
-	# Extract signon and demos even if other assets already exist
 	var config = game_configs[game_type]
 	current_data_path = config.data_path
 	current_extension = config.extension
 	current_output_path = config.output
 	
-	# Create directories if they don't exist
 	DirAccess.make_dir_recursive_absolute(current_output_path + "demos")
 	DirAccess.make_dir_recursive_absolute(current_output_path + "signon")
 	
-	# Check if signon exists
 	var signon_file = current_output_path + "signon/SIGNON.png"
 	if not FileAccess.file_exists(signon_file):
 		print("   Extracting missing signon...")
@@ -188,42 +174,11 @@ func _extract_missing_assets(game_type: GameType) -> void:
 	else:
 		print("   Signon already extracted")
 	
-	# Check if demos exist
 	var demo_file = current_output_path + "demos/DEMO0.bin"
 	if not FileAccess.file_exists(demo_file):
 		print("   Extracting missing demos...")
 		extract_demos()
 	
-#func already_extracted() -> bool:
-	#var map_dir = DirAccess.open(output_path + "maps/json/")
-	#if map_dir == null:
-		#return false
-	#
-	#var wall_dir = DirAccess.open(output_path + "walls/")
-	#if wall_dir == null:
-		#return false
-	#
-	#map_dir.list_dir_begin()
-	#var has_maps = false
-	#var file_name = map_dir.get_next()
-	#while file_name != "":
-		#if file_name.ends_with(".json"):
-			#has_maps = true
-			#break
-		#file_name = map_dir.get_next()
-	#map_dir.list_dir_end()
-	#
-	#wall_dir.list_dir_begin()
-	#var has_walls = false
-	#file_name = wall_dir.get_next()
-	#while file_name != "":
-		#if file_name.ends_with(".png"):
-			#has_walls = true
-			#break
-		#file_name = wall_dir.get_next()
-	#wall_dir.list_dir_end()
-	#
-	#return has_maps and has_walls
 	
 func already_extracted() -> bool:
 	
@@ -231,7 +186,6 @@ func already_extracted() -> bool:
 	if map_dir == null:
 		return false
 	
-	# CHECK USER:// FOR WALLS NOW!
 	var wall_dir = DirAccess.open(texture_output_path + "walls/")
 	if wall_dir == null:
 		return false
@@ -485,28 +439,23 @@ func extract_vswap():
 		push_error("Cannot open " + vswap_path)
 		return
 	
-	# Read header
 	var num_chunks = vswap.get_16()
 	var sprite_start = vswap.get_16()
 	var sound_start = vswap.get_16()
 	
 	print("-> Chunks: %d, Sprites start: %d, Sounds start: %d" % [num_chunks, sprite_start, sound_start])
 	
-	# Read chunk offsets (4 bytes each)
 	var chunk_offsets: Array[int] = []
 	for i in range(num_chunks):
 		chunk_offsets.append(vswap.get_32())
 	
-	# Read chunk lengths (2 bytes each)
 	var chunk_lengths: Array[int] = []
 	for i in range(num_chunks):
 		chunk_lengths.append(vswap.get_16())
 	
-	# Calculate number of digits needed for wall naming
 	var max_wall_idx = (sprite_start - 1) / 2
 	var num_digits = len(str(max_wall_idx))
 	
-	# Extract wall textures (chunks 0 to sprite_start - 1)
 	print("-> Extracting %d wall textures..." % sprite_start)
 	for i in range(sprite_start):
 		var offset = chunk_offsets[i]
@@ -518,11 +467,9 @@ func extract_vswap():
 		vswap.seek(offset)
 		var texture_data = vswap.get_buffer(length)
 		
-		# Textures are 64x64, stored column-first (transposed)
 		if texture_data.size() == TEXTURE_SIZE * TEXTURE_SIZE:
 			save_wall_texture(texture_data, i, num_digits)
 	
-	# Extract sprites (chunks sprite_start to sound_start - 1)
 	print("-> Extracting %d sprites..." % (sound_start - sprite_start))
 	for i in range(sprite_start, sound_start):
 		var offset = chunk_offsets[i]
@@ -535,14 +482,11 @@ func extract_vswap():
 		var sprite_data = vswap.get_buffer(length)
 		save_sprite(sprite_data, i - sprite_start)
 	
-	# Extract digitized sounds using sound info page (last chunk)
-	# The last chunk contains (startpage, length) pairs for each logical sound
 	var sound_info_offset = chunk_offsets[num_chunks - 1]
 	var sound_info_length = chunk_lengths[num_chunks - 1]
 	
 	if sound_info_length == 0:
 		print("--> No sound info page found, extracting sounds individually...")
-		# Fallback to old method
 		var num_sounds_fallback = num_chunks - sound_start - 1
 		for i in range(sound_start, num_chunks - 1):
 			var offset = chunk_offsets[i]
@@ -553,11 +497,9 @@ func extract_vswap():
 			var sound_data = vswap.get_buffer(length)
 			save_sound_as_wav(sound_data, i - sound_start, "DIGI_%03d" % (i - sound_start))
 	else:
-		# Read sound info page to get (startpage, length) pairs
 		vswap.seek(sound_info_offset)
 		var sound_info_data = vswap.get_buffer(sound_info_length)
 		
-		# Each entry is 4 bytes: 2 bytes startpage + 2 bytes length
 		var num_digi = sound_info_length / 4
 		print("--> Sound info page found: %d digitized sounds" % num_digi)
 		
@@ -569,13 +511,11 @@ func extract_vswap():
 			var start_page = sound_info_data.decode_u16(info_offset)
 			var sound_length = sound_info_data.decode_u16(info_offset + 2)
 			
-			# startpage is relative to sound_start
 			var absolute_chunk = sound_start + start_page
 			
 			if absolute_chunk >= num_chunks - 1 or sound_length == 0:
 				continue
 			
-			# Collect data from all pages that make up this sound
 			var combined_data = PackedByteArray()
 			var remaining_length = sound_length
 			var current_chunk = absolute_chunk
@@ -596,7 +536,6 @@ func extract_vswap():
 				remaining_length -= bytes_to_read
 				current_chunk += 1
 			
-			# Get sound name
 			var sound_name = "DIGI_%03d" % snd_idx
 			if snd_idx < DIGI_SOUND_NAMES.size():
 				sound_name = DIGI_SOUND_NAMES[snd_idx]
@@ -608,7 +547,6 @@ func extract_vswap():
 	vswap.close()
 	print("-> VSWAP extraction complete")
 	
-	# ENHANCED DEBUG CODE
 	print("========== EXTRACTION DEBUG ==========")
 	print("Texture output path: ", texture_output_path + "walls/")
 	var wall_dir = DirAccess.open(texture_output_path + "walls/")
@@ -626,7 +564,6 @@ func extract_vswap():
 	else:
 		print("FAILED TO OPEN WALL DIRECTORY!")
 	
-	# ADD SPRITE DEBUG
 	print("\nSprite output path: ", texture_output_path + "sprites/")
 	var sprite_dir = DirAccess.open(texture_output_path + "sprites/")
 	if sprite_dir:
@@ -637,7 +574,7 @@ func extract_vswap():
 		while file_name != "":
 			if file_name.ends_with(".png"):
 				count += 1
-				if count <= 5:  # Print first 5 files
+				if count <= 5:
 					print("  Found: ", file_name)
 			file_name = sprite_dir.get_next()
 		sprite_dir.list_dir_end()
@@ -651,7 +588,6 @@ func extract_vswap():
 func save_wall_texture(data: PackedByteArray, texture_id: int, num_digits: int):
 	var img = Image.create(TEXTURE_SIZE, TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
 	
-	# Transpose: data is stored column-first, we need row-first
 	for x in range(TEXTURE_SIZE):
 		for y in range(TEXTURE_SIZE):
 			var src_idx = x * TEXTURE_SIZE + y
@@ -660,14 +596,11 @@ func save_wall_texture(data: PackedByteArray, texture_id: int, num_digits: int):
 				var color = WOLF_PALETTE[pal_idx]
 				img.set_pixel(x, y, Color8(color[0], color[1], color[2], 255))
 	
-	# Generate mipmaps for texture loading
 	img.generate_mipmaps()
 	
-	# Match Python naming: every 2 chunks = 1 wall (unshaded/shaded pair)
-	var wall_idx = texture_id / 2  # Integer division
+	var wall_idx = texture_id / 2
 	var is_shaded = texture_id % 2 == 1
 	
-	# Format: 00.png, 00_shaded.png, 01.png, 01_shaded.png, etc.
 	var format_str = "%0" + str(num_digits) + "d"
 	var filename = "%swalls/" % current_output_path + format_str % wall_idx
 	filename += "_shaded.png" if is_shaded else ".png"
@@ -695,7 +628,6 @@ func save_sprite(data: PackedByteArray, sprite_id: int):
 	
 	var num_columns = right_column - left_column + 1
 	
-	# Read column data pointers
 	var column_data_ptrs: Array[int] = []
 	for i in range(num_columns):
 		var offset_pos = 4 + i * 2
@@ -705,12 +637,10 @@ func save_sprite(data: PackedByteArray, sprite_id: int):
 			print("    FAILED: not enough data for column pointers")
 			return
 	
-	# Initialize all pixels as transparent
 	var tmp: PackedByteArray = PackedByteArray()
 	tmp.resize(TEXTURE_SIZE * TEXTURE_SIZE)
 	tmp.fill(255)
 	
-	# Process each column
 	for col_idx in range(num_columns):
 		var x = left_column + col_idx
 		if x >= TEXTURE_SIZE:
@@ -741,7 +671,6 @@ func save_sprite(data: PackedByteArray, sprite_id: int):
 				tmp[y * TEXTURE_SIZE + x] = data[pixel_start]
 				pixel_start += 1
 	
-	# Convert to RGBA image
 	var img = Image.create(TEXTURE_SIZE, TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
 	
 	for y in range(TEXTURE_SIZE):
@@ -813,12 +742,10 @@ func save_sound_as_wav(data: PackedByteArray, sound_id: int, sound_name: String 
 	if data.size() == 0:
 		return
 	
-	# Wolf3D digitized sounds: 8-bit unsigned PCM, mono, 7042 Hz (original rate)
 	const SAMPLE_RATE = 7042
 	const BITS_PER_SAMPLE = 8
 	const NUM_CHANNELS = 1
 	
-	# Use provided name or fall back to numbered format
 	var name_part = sound_name if sound_name != "" else "DIGI_%03d" % sound_id
 	var filename = "%ssounds/%s.wav" % [current_output_path, name_part]
 	var file = FileAccess.open(filename, FileAccess.WRITE)
@@ -826,31 +753,25 @@ func save_sound_as_wav(data: PackedByteArray, sound_id: int, sound_name: String 
 		push_error("Cannot create sound file: " + filename)
 		return
 	
-	# WAV file header (44 bytes)
 	var data_size = data.size()
 	var file_size = 36 + data_size
 	
-	# RIFF header
 	file.store_buffer("RIFF".to_ascii_buffer())
 	file.store_32(file_size)
 	file.store_buffer("WAVE".to_ascii_buffer())
 	
-	# fmt sub-chunk
 	file.store_buffer("fmt ".to_ascii_buffer())
-	file.store_32(16)  # Sub-chunk size
-	file.store_16(1)   # Audio format (1 = PCM)
+	file.store_32(16)
+	file.store_16(1)
 	file.store_16(NUM_CHANNELS)
 	file.store_32(SAMPLE_RATE)
-	file.store_32(SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8)  # Byte rate
-	file.store_16(NUM_CHANNELS * BITS_PER_SAMPLE / 8)  # Block align
+	file.store_32(SAMPLE_RATE * NUM_CHANNELS * BITS_PER_SAMPLE / 8)
+	file.store_16(NUM_CHANNELS * BITS_PER_SAMPLE / 8)
 	file.store_16(BITS_PER_SAMPLE)
 	
-	# data sub-chunk
 	file.store_buffer("data".to_ascii_buffer())
 	file.store_32(data_size)
 	
-	# Wolf3D uses unsigned 8-bit PCM, WAV expects unsigned 8-bit
-	# So we can write the data directly
 	file.store_buffer(data)
 	
 	file.close()
@@ -874,8 +795,6 @@ const MUSIC_NAMES = [
 	"NAZI_RAP", "ZEROHOUR", "TWELFTH", "ROSTER", "URAHERO", "VICMARCH", "PACMAN"
 ]
 
-# Wolf3D digitized sound names (matching VSWAP order from your screenshot)
-# These correspond to the sounds in the sound info page
 const DIGI_SOUND_NAMES = [
 	"HALTSND", "DOGBARKSND", "CLOSEDOORSND", "OPENDOORSND", "ATKMACHINEGUNSND",
 	"ATKPISTOLSND", "ATKGATLINGSND", "SCHUTZADSND", "GUTENTAGSND", "MUTTISND",
@@ -934,7 +853,6 @@ func extract_adlib_sounds() -> void:
 		print("--> No AUDIOT found, skipping AdLib extraction")
 		return
 	
-	# Read all offsets from AUDIOHED (32-bit each)
 	var offsets: Array[int] = []
 	while audiohed.get_position() < audiohed.get_length():
 		offsets.append(audiohed.get_32())
@@ -942,12 +860,8 @@ func extract_adlib_sounds() -> void:
 	
 	var num_chunks = offsets.size() - 1
 	
-	# In Wolf3D, AdLib sounds start at index LASTSOUND (NUMSOUNDS)
-	# PC speaker sounds are 0 to LASTSOUND-1
-	# AdLib sounds are LASTSOUND to 2*LASTSOUND-1
-	# We estimate LASTSOUND as ~87 based on audiowl6.h
 	var lastsound = 87
-	var adlib_start = lastsound  # AdLib sounds start after PC speaker sounds
+	var adlib_start = lastsound
 	
 	print("--> Extracting AdLib sounds (indices %d to %d)" % [adlib_start, adlib_start + lastsound - 1])
 	
@@ -970,22 +884,18 @@ func extract_adlib_sounds() -> void:
 			continue
 		
 		var chunk_size = next_offset - offset
-		if chunk_size < 24:  # Minimum AdLib sound header is 24 bytes
+		if chunk_size < 24:
 			continue
 		
 		audiot.seek(offset)
 		
-		# Read AdLib sound header (6 byte SoundCommon + 16 byte Instrument + 1 byte block)
-		var length = audiot.get_32()  # Data length
-		var priority = audiot.get_16() # Priority
+		var length = audiot.get_32()
+		var priority = audiot.get_16()
 		
-		# Read instrument data (16 bytes) - we'll use simplified synthesis
 		var inst_data = audiot.get_buffer(16)
 		
-		# Read block (octave selector)
 		var block = audiot.get_8()
 		
-		# Read sound data
 		if length == 0 or length > chunk_size - 23:
 			continue
 		
@@ -1006,19 +916,12 @@ func extract_adlib_sounds() -> void:
 	print("--> Extracted %d AdLib sounds" % extracted)
 
 func _render_adlib_to_pcm(data: PackedByteArray, block: int, inst: PackedByteArray) -> PackedByteArray:
-	# Simplified AdLib rendering using square wave synthesis
-	# Real OPL2 uses FM synthesis, but square waves give recognizable beeps
-	
-	const SAMPLE_RATE = 22050  # Output sample rate
-	const TICK_RATE = 140.0    # Wolf3D runs AdLib at 140 Hz
+	const SAMPLE_RATE = 22050
+	const TICK_RATE = 140.0
 	const SAMPLES_PER_TICK = SAMPLE_RATE / TICK_RATE
 	
 	var result = PackedByteArray()
 	
-	# OPL2 frequency calculation:
-	# Each sound has its own block (octave) value stored in header
-	# Freq = F-Number * 49716 / (2^(20-Block))
-	# Block ranges from 0-7, each step doubles the frequency
 	var octave = block & 7
 	print("  Block/octave for this sound: %d" % octave)
 	
@@ -1028,26 +931,18 @@ func _render_adlib_to_pcm(data: PackedByteArray, block: int, inst: PackedByteArr
 		var freq_low = data[byte_idx]
 		
 		if freq_low == 0:
-			# Silence - output silence samples
 			for s in range(int(SAMPLES_PER_TICK)):
-				result.append(128)  # 8-bit silence (unsigned)
+				result.append(128)
 		else:
-			# Calculate frequency directly using OPL2 formula
-			# F-Number is what's stored in the data byte (0-255)
 			var f_number = float(freq_low)
 			
-			# OPL2 formula: Freq = F-Number * 49716 / (2^(20-Block))
-			# This gives the correct frequency based on each sound's octave
 			var freq = (f_number * 49716.0) / pow(2, 20 - octave)
 			
-			# Clamp frequency to audible range
 			freq = clamp(freq, 50.0, 10000.0)
 			
-			# Generate square wave samples for this tick
 			var phase_inc = freq / SAMPLE_RATE
 			
 			for s in range(int(SAMPLES_PER_TICK)):
-				# Square wave with reduced amplitude for less harsh sound
 				var sample = 192 if sin(phase * TAU) > 0 else 64
 				result.append(sample)
 				phase += phase_inc
@@ -1070,22 +965,19 @@ func _save_adlib_wav(data: PackedByteArray, sound_name: String) -> void:
 	var data_size = data.size()
 	var file_size = 36 + data_size
 	
-	# WAV header
 	file.store_buffer("RIFF".to_ascii_buffer())
 	file.store_32(file_size)
 	file.store_buffer("WAVE".to_ascii_buffer())
 	
-	# fmt chunk
 	file.store_buffer("fmt ".to_ascii_buffer())
 	file.store_32(16)
-	file.store_16(1)  # PCM
-	file.store_16(1)  # Mono
+	file.store_16(1)
+	file.store_16(1)
 	file.store_32(SAMPLE_RATE)
-	file.store_32(SAMPLE_RATE)  # Byte rate
-	file.store_16(1)  # Block align
-	file.store_16(8)  # 8 bits
-	
-	# data chunk
+	file.store_32(SAMPLE_RATE)
+	file.store_16(1)
+	file.store_16(8)
+
 	file.store_buffer("data".to_ascii_buffer())
 	file.store_32(data_size)
 	file.store_buffer(data)
@@ -1109,21 +1001,13 @@ func extract_audio() -> void:
 		print("-> No AUDIOT found, skipping music extraction")
 		return
 	
-	# Read all offsets from AUDIOHED (32-bit each)
 	var offsets: Array[int] = []
 	while audiohed.get_position() < audiohed.get_length():
 		offsets.append(audiohed.get_32())
 	audiohed.close()
 	
-	# Find where music starts by looking for the pattern
-	# Music chunks are larger and start after sound effects
-	# In Wolf3D: startmusic = STARTMUSIC constant (varies by version)
-	# We'll detect it by finding larger chunks near the end
+	var num_chunks = offsets.size() - 1
 	
-	var num_chunks = offsets.size() - 1  # Last offset is end-of-file marker
-	
-	# Heuristic: music is in the last ~27 chunks for Wolf3D
-	# Calculate chunk sizes and find music section
 	var chunk_sizes: Array[int] = []
 	for i in range(num_chunks):
 		if offsets[i] != 0xFFFFFFFF and offsets[i + 1] != 0xFFFFFFFF:
@@ -1132,7 +1016,6 @@ func extract_audio() -> void:
 		else:
 			chunk_sizes.append(0)
 	
-	# Find first large chunk (likely music) - music chunks are typically > 1000 bytes
 	var music_start_idx = -1
 	for i in range(num_chunks - 1, -1, -1):
 		if chunk_sizes[i] > 1000:
@@ -1143,18 +1026,15 @@ func extract_audio() -> void:
 		audiot.close()
 		return
 	
-	# Count backwards to find first music chunk
 	var music_count = 0
 	for i in range(music_start_idx, num_chunks):
-		if chunk_sizes[i] > 500:  # Music is usually > 500 bytes
+		if chunk_sizes[i] > 500:
 			music_count += 1
 	
-	# Adjust music_start_idx to the actual start
 	music_start_idx = num_chunks - music_count
 	
 	print("-> Found %d music tracks starting at chunk %d" % [music_count, music_start_idx])
 	
-	# Extract each music track
 	var extracted = 0
 	for i in range(music_count):
 		var chunk_idx = music_start_idx + i
@@ -1174,16 +1054,13 @@ func extract_audio() -> void:
 		audiot.seek(offset)
 		var data = audiot.get_buffer(size)
 		
-		# Get track name
 		var track_name = "TRACK_%02d" % i
 		if i < MUSIC_NAMES.size():
 			track_name = MUSIC_NAMES[i]
 		
-		# Save as .imf file (can be played with AdPlug or converted)
 		var filename = "%smusic/%s.imf" % [current_output_path, track_name]
 		var file = FileAccess.open(filename, FileAccess.WRITE)
 		if file:
-			# IMF Type-0 format: just the raw data
 			file.store_buffer(data)
 			file.close()
 			extracted += 1
@@ -1222,12 +1099,10 @@ func _convert_imf_to_wav() -> void:
 			var wav_name = file_name.replace(".imf", ".wav")
 			var wav_path = global_music_dir + wav_name
 			
-			# Skip if WAV already exists
 			if FileAccess.file_exists(music_dir + wav_name):
 				file_name = dir.get_next()
 				continue
 			
-			# Run imf2wav.exe
 			var args = [imf_path, wav_path]
 			var output = []
 			var result = OS.execute(imf2wav_path, args, output, true)
@@ -1250,7 +1125,6 @@ func _convert_imf_to_wav() -> void:
 # VGAGRAPH uses Huffman compression and VGA Mode X planar format
 
 # Picture names from GFXV_WL6.H (Wolf3D full version)
-# Pics start at chunk 3
 const PIC_NAMES = [
 	"H_BJPIC", "H_CASTLEPIC", "H_BLAZEPIC", "H_TOPWINDOWPIC", "H_LEFTWINDOWPIC",
 	"H_RIGHTWINDOWPIC", "H_BOTTOMINFOPIC", "C_OPTIONSPIC", "C_CURSOR1PIC", "C_CURSOR2PIC",
@@ -1277,7 +1151,7 @@ const PIC_NAMES = [
 	"PAUSEDPIC", "GETPSYCHEDPIC"
 ]
 
-const STARTPICS = 3  # First pic chunk in VGAGRAPH
+const STARTPICS = 3
 
 func extract_vgagraph() -> void:
 	print("Extracting VGAGRAPH (pics)...")
@@ -1286,13 +1160,11 @@ func extract_vgagraph() -> void:
 	var vgahead_path = current_data_path + "VGAHEAD" + current_extension
 	var vgagraph_path = current_data_path + "VGAGRAPH" + current_extension
 	
-	# Open VGADICT (Huffman dictionary)
 	var vgadict = FileAccess.open(vgadict_path, FileAccess.READ)
 	if vgadict == null:
 		print("-> No VGADICT found, skipping VGAGRAPH extraction")
 		return
 	
-	# Read Huffman table (255 nodes, each with 2 unsigned shorts = 4 bytes)
 	var huffman_table: Array = []
 	for i in range(255):
 		var bit0 = vgadict.get_16()
@@ -1301,34 +1173,28 @@ func extract_vgagraph() -> void:
 	vgadict.close()
 	print("-> Loaded Huffman dictionary (255 nodes)")
 	
-	# Open VGAHEAD (chunk offsets - 3 bytes each for Wolf3D)
 	var vgahead = FileAccess.open(vgahead_path, FileAccess.READ)
 	if vgahead == null:
 		print("-> No VGAHEAD found, skipping VGAGRAPH extraction")
 		return
 	
-	# Read 3-byte offsets
 	var offsets: Array[int] = []
 	while vgahead.get_position() < vgahead.get_length():
 		var b0 = vgahead.get_8()
 		var b1 = vgahead.get_8()
 		var b2 = vgahead.get_8()
 		var offset = b0 | (b1 << 8) | (b2 << 16)
-		# -1 (0xFFFFFF) means sparse/unused chunk
 		if offset == 0xFFFFFF:
 			offset = -1
 		offsets.append(offset)
 	vgahead.close()
 	print("-> Found %d chunk offsets" % offsets.size())
 	
-	# Open VGAGRAPH
 	var vgagraph = FileAccess.open(vgagraph_path, FileAccess.READ)
 	if vgagraph == null:
 		print("-> No VGAGRAPH found, skipping extraction")
 		return
 	
-	# First, read the picture table from chunk 0 (STRUCTPIC)
-	# Contains width/height for each pic
 	var pic_table = _read_pic_table(vgagraph, offsets, huffman_table)
 	if pic_table.is_empty():
 		print("-> Failed to read picture table")
@@ -1336,11 +1202,9 @@ func extract_vgagraph() -> void:
 		return
 	print("-> Loaded picture dimensions for %d pics" % pic_table.size())
 	
-	# Extract each pic (starting at STARTPICS)
 	var extracted = 0
 	var num_pics = mini(PIC_NAMES.size(), pic_table.size())
 	
-	# Extract fonts first (Chunks 1 and 2)
 	_extract_fonts(vgagraph, offsets, huffman_table)
 	
 	for i in range(num_pics):
@@ -1351,11 +1215,9 @@ func extract_vgagraph() -> void:
 		var offset = offsets[chunk_idx]
 		var next_offset = offsets[chunk_idx + 1]
 		
-		# Skip sparse chunks
 		if offset < 0:
 			continue
 		
-		# Find next valid offset for size calculation
 		var j = chunk_idx + 1
 		while j < offsets.size() and offsets[j] < 0:
 			j += 1
@@ -1372,12 +1234,10 @@ func extract_vgagraph() -> void:
 		var expanded_len = vgagraph.get_32()  # First 4 bytes = expanded length
 		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
 		
-		# Huffman decompress
 		var decompressed = _huffman_expand(compressed_data, expanded_len, huffman_table)
 		if decompressed.size() == 0:
 			continue
 		
-		# Get dimensions from pic table
 		var pic_info = pic_table[i] if i < pic_table.size() else {"width": 0, "height": 0}
 		var width = pic_info.width
 		var height = pic_info.height
@@ -1385,12 +1245,10 @@ func extract_vgagraph() -> void:
 		if width <= 0 or height <= 0 or width > 320 or height > 200:
 			continue
 		
-		# Unmunge from VGA planar format
 		var linear_data = _unmunge_pic(decompressed, width, height)
 		if linear_data.size() != width * height:
 			continue
 		
-		# Save as PNG
 		var pic_name = PIC_NAMES[i] if i < PIC_NAMES.size() else "PIC_%03d" % i
 		_save_pic(linear_data, width, height, i, pic_name)
 		extracted += 1
@@ -1400,8 +1258,6 @@ func extract_vgagraph() -> void:
 
 
 func _read_pic_table(vgagraph: FileAccess, offsets: Array[int], huffman_table: Array) -> Array:
-	# Chunk 0 (STRUCTPIC) contains picture dimensions
-	# Each entry: 2 bytes width + 2 bytes height
 	var pic_table: Array = []
 	
 	if offsets.size() < 2 or offsets[0] < 0:
@@ -1410,7 +1266,6 @@ func _read_pic_table(vgagraph: FileAccess, offsets: Array[int], huffman_table: A
 	var offset = offsets[0]
 	var next_offset = offsets[1]
 	
-	# Find next valid offset
 	var j = 1
 	while j < offsets.size() and offsets[j] < 0:
 		j += 1
@@ -1430,7 +1285,6 @@ func _read_pic_table(vgagraph: FileAccess, offsets: Array[int], huffman_table: A
 	if decompressed.size() == 0:
 		return pic_table
 	
-	# Parse width/height pairs
 	var pos = 0
 	while pos + 3 < decompressed.size():
 		var width = decompressed.decode_u16(pos)
@@ -1442,7 +1296,6 @@ func _read_pic_table(vgagraph: FileAccess, offsets: Array[int], huffman_table: A
 
 
 func _huffman_expand(source: PackedByteArray, expanded_len: int, huffman_table: Array) -> PackedByteArray:
-	# Huffman decompression based on CAL_HuffExpand from ID_CA.C
 	var result = PackedByteArray()
 	result.resize(expanded_len)
 	
@@ -1451,7 +1304,7 @@ func _huffman_expand(source: PackedByteArray, expanded_len: int, huffman_table: 
 	
 	var src_pos = 0
 	var dest_pos = 0
-	var node_idx = 254  # Head node is always 254
+	var node_idx = 254
 	
 	while dest_pos < expanded_len and src_pos < source.size():
 		var byte_val = source[src_pos]
@@ -1465,15 +1318,13 @@ func _huffman_expand(source: PackedByteArray, expanded_len: int, huffman_table: 
 			var next_node = huffman_table[node_idx][bit_val]
 			
 			if next_node < 256:
-				# It's a byte value
 				result[dest_pos] = next_node
 				dest_pos += 1
-				node_idx = 254  # Back to head
+				node_idx = 254
 			else:
-				# It's a node pointer (subtract 256 to get node index)
 				node_idx = next_node - 256
 				if node_idx >= 255:
-					node_idx = 254  # Safety: reset to head
+					node_idx = 254
 	
 	return result
 
@@ -1489,15 +1340,12 @@ func _unmunge_pic(data: PackedByteArray, width: int, height: int) -> PackedByteA
 	result.resize(width * height)
 	
 	if data.size() < width * height:
-		# Not enough data, return as-is (non-planar format)
 		return data
 	
-	# Width must be divisible by 4 for planar format
 	if width % 4 != 0:
-		# Not planar format, return as-is
 		return data
 	
-	var pwidth = width / 4  # Width of each plane
+	var pwidth = width / 4
 	var src_pos = 0
 	
 	for plane in range(4):
@@ -1514,7 +1362,6 @@ func _unmunge_pic(data: PackedByteArray, width: int, height: int) -> PackedByteA
 
 
 func _save_pic(data: PackedByteArray, width: int, height: int, pic_id: int, name: String) -> void:
-	# Create image with Wolf3D palette
 	var img = Image.create(width, height, false, Image.FORMAT_RGBA8)
 	
 	for y in range(height):
@@ -1536,11 +1383,10 @@ func _save_pic(data: PackedByteArray, width: int, height: int, pic_id: int, name
 func _extract_fonts(vgagraph: FileAccess, offsets: Array[int], huffman_table: Array) -> void:
 	print("-> Extracting fonts (Chunks 1 and 2)...")
 	
-	for i in range(1, 3):  # Chunks 1 and 2 are fonts
+	for i in range(1, 3):
 		var offset = offsets[i]
 		if offset < 0: continue
 		
-		# Find next valid offset for size
 		var j = i + 1
 		while j < offsets.size() and offsets[j] < 0: j += 1
 		if j >= offsets.size(): break
@@ -1551,12 +1397,11 @@ func _extract_fonts(vgagraph: FileAccess, offsets: Array[int], huffman_table: Ar
 		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
 		
 		var decompressed = _huffman_expand(compressed_data, expanded_len, huffman_table)
-		if decompressed.size() < 770: continue # fontstruct is 770 bytes
+		if decompressed.size() < 770: continue
 		
 		_save_font_atlas(decompressed, i)
 
 func _save_font_atlas(data: PackedByteArray, font_id: int) -> void:
-	# fontstruct: height (2), location[256] (512), width[256] (256)
 	var height = data.decode_u16(0)
 	var locations: Array[int] = []
 	for i in range(256):
@@ -1565,7 +1410,6 @@ func _save_font_atlas(data: PackedByteArray, font_id: int) -> void:
 	for i in range(256):
 		widths.append(data[514 + i])
 	
-	# Calculate total width for atlas (16x16 grid)
 	var max_char_width = 0
 	for w in widths: max_char_width = max(max_char_width, w)
 	
@@ -1590,14 +1434,12 @@ func _save_font_atlas(data: PackedByteArray, font_id: int) -> void:
 		var atlas_x = col * max_char_width
 		var atlas_y = row * height
 		
-		# Copy character pixels
 		for y in range(height):
 			for x in range(char_width):
 				var src_idx = char_loc + y * char_width + x
 				if src_idx < data.size():
 					var val = data[src_idx]
 					if val != 0:
-						# Original drawer uses fontcolor, we'll use white for the atlas
 						img.set_pixel(atlas_x + x, atlas_y + y, Color.WHITE)
 					else:
 						img.set_pixel(atlas_x + x, atlas_y + y, Color(0,0,0,0))
@@ -1640,7 +1482,6 @@ func extract_demos() -> void:
 		print("-> No VGADICT found, skipping demo extraction")
 		return
 	
-	# Read Huffman table
 	var huffman_table: Array = []
 	for i in range(255):
 		var bit0 = vgadict.get_16()
@@ -1654,7 +1495,6 @@ func extract_demos() -> void:
 		print("-> No VGAHEAD found, skipping demo extraction")
 		return
 	
-	# Read chunk offsets (3 bytes each)
 	var offsets: Array[int] = []
 	while vgahead.get_position() < vgahead.get_length():
 		var b0 = vgahead.get_8()
@@ -1662,7 +1502,7 @@ func extract_demos() -> void:
 		var b2 = vgahead.get_8()
 		var offset = b0 | (b1 << 8) | (b2 << 16)
 		if offset == 0xFFFFFF:
-			offset = -1  # Sparse marker
+			offset = -1
 		offsets.append(offset)
 	vgahead.close()
 	
@@ -1672,7 +1512,6 @@ func extract_demos() -> void:
 		print("-> No VGAGRAPH found, skipping demo extraction")
 		return
 	
-	# Determine which demo chunks to use
 	var demo_chunks = DEMO_CHUNKS_WL6
 	if current_extension == ".SOD":
 		demo_chunks = DEMO_CHUNKS_SOD
@@ -1687,7 +1526,6 @@ func extract_demos() -> void:
 		if offset < 0:
 			continue
 		
-		# Find next valid offset
 		var j = chunk_idx + 1
 		while j < offsets.size() and offsets[j] < 0:
 			j += 1
@@ -1699,7 +1537,6 @@ func extract_demos() -> void:
 		if compressed_size <= 4:
 			continue
 		
-		# Read and decompress
 		vgagraph.seek(offset)
 		var expanded_len = vgagraph.get_32()
 		var compressed_data = vgagraph.get_buffer(compressed_size - 4)
@@ -1708,7 +1545,6 @@ func extract_demos() -> void:
 		if data.size() == 0:
 			continue
 		
-		# Save demo data as binary file
 		var demo_path = current_output_path + "demos/DEMO%d.bin" % i
 		var file = FileAccess.open(demo_path, FileAccess.WRITE)
 		if file:
@@ -1728,14 +1564,10 @@ func extract_demos() -> void:
 func extract_signon() -> void:
 	print("Extracting signon screen...")
 	
-	# Get the project root and look in sibling directories
-	# globalize_path gives us "C:/Users/.../wolfgodot_branch/wolfgodot/"
-	# We need to go up to "wolfgodot_branch" to find WOLF-code
 	var project_path = ProjectSettings.globalize_path("res://")
-	# Remove trailing slash if present, then get parent directory
 	if project_path.ends_with("/"):
 		project_path = project_path.left(project_path.length() - 1)
-	var parent_path = project_path.get_base_dir()  # Now goes from wolfgodot to wolfgodot_branch
+	var parent_path = project_path.get_base_dir()
 	
 	print("   Project path: %s" % project_path)
 	print("   Parent path: %s" % parent_path)
@@ -1765,7 +1597,6 @@ func extract_signon() -> void:
 	var content = cpp_file.get_as_text()
 	cpp_file.close()
 	
-	# Parse hex values from the C array format: 0x29,0x29,...
 	var vga_data = PackedByteArray()
 	var regex = RegEx.new()
 	regex.compile("0x([0-9A-Fa-f]{2})")
@@ -1775,10 +1606,10 @@ func extract_signon() -> void:
 		var hex_str = result.get_string(1)
 		var byte_val = ("0x" + hex_str).hex_to_int()
 		vga_data.append(byte_val)
-		if vga_data.size() >= 64000:  # 320 * 200
+		if vga_data.size() >= 64000:
 			break
 	
-	print("   Parsed %d bytes from signon.cpp" % vga_data.size())
+	print("Parsed %d bytes from signon.cpp" % vga_data.size())
 	
 	if vga_data.size() < 64000:
 		print("-> Insufficient data in signon.cpp (got %d bytes, need 64000)" % vga_data.size())
@@ -1795,7 +1626,6 @@ func extract_signon() -> void:
 					var color = WOLF_PALETTE[pal_idx]
 					img.set_pixel(x, y, Color8(color[0], color[1], color[2], 255))
 	
-	# Save as PNG
 	var signon_path = current_output_path + "signon/SIGNON.png"
 	img.save_png(signon_path)
 	print("-> Extracted signon screen to signon/SIGNON.png")

@@ -7,7 +7,7 @@ enum {
 }
 
 class L1Utils:
-	const door_id = 50 # texture id
+	const door_id = 50
 	const door_side_id = 51
 
 	static func is_wall(id: int) -> bool:
@@ -23,9 +23,6 @@ class L1Utils:
 		return id >= 106 and id <= 143
 
 	static func get_axis(id: int) -> bool:
-		# Holds for WL6
-		# false = north/south
-		# true = east/west
 		return id % 2 == 0
 
 
@@ -44,19 +41,11 @@ class L2Utils:
 	
 	static func is_pickup(id: int) -> bool:
 		# Pickups are statics that give bonuses (based on WL_ACT1.C statinfo array)
-		# Static ID = thing_id - 23 to get SPR_STAT_X index
 		var static_idx = id - 23
-		# Pickup items from statinfo:
-		# 6=alpo, 20=key1, 21=key2, 24=food, 25=firstaid, 26=clip,
-		# 27=machinegun, 28=chaingun, 29=cross, 30=chalice, 31=bible,
-		# 32=crown, 33=fullheal
 		return static_idx in [6, 20, 21, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33]
 	
 	static func get_pickup_type(id: int) -> int:
 		# Returns Pickup.PickupType enum value, or -1 if not a pickup
-		# Pickup.PickupType: FOOD=0, HEALTH_KIT=1, CLIP=2, AMMO_BOX=3, 
-		# MACHINEGUN=4, CHAINGUN=5, GOLD_KEY=6, SILVER_KEY=7,
-		# CROSS=8, CHALICE=9, BIBLE=10, CROWN=11, EXTRA_LIFE=12
 		var static_idx = id - 23
 		match static_idx:
 			6: return 0   # FOOD (alpo/dog food)
@@ -77,24 +66,16 @@ class L2Utils:
 	static func get_static_idx(id: int) -> int:
 		return id - 23
 	
-	# Check if static object blocks movement (based on original Wolf3D statinfo)
-	# Original has 'block' flag in statinfo[] array for solid decorations
 	static func is_blocking_static(id: int) -> bool:
 		var static_idx = id - 23
 		return static_idx in [1, 2, 3, 7, 8, 9, 10, 12, 13, 16, 17, 23, 34, 35, 36, 37, 38, 39, 40]
 
-	# Enemy types enum
 	enum EnemyType { NONE, GUARD, OFFICER, SS, DOG, MUTANT, BOSS }
 
-	# Check if this is any kind of enemy (standing or patrol, any difficulty)
 	static func is_enemy(id: int) -> bool:
 		return get_enemy_info(id)[0] != EnemyType.NONE
 
-	# Returns [enemy_type, direction, is_patrol]
-	# Direction: 0=North, 1=East, 2=South, 3=West
 	static func get_enemy_info(id: int) -> Array:
-		# Normalize difficulty variations to base ID
-		# Hard difficulty adds +72 (or +36 twice), Medium adds +36
 		var base_id = id
 		
 		# Guard standing: 108-111 (easy), 144-147 (med), 180-183 (hard)
@@ -161,46 +142,38 @@ class L2Utils:
 			return [EnemyType.MUTANT, base_id - 220, true]
 		
 		# Boss enemies (special cases, no direction/patrol)
-		if id == 214: return [EnemyType.BOSS, 0, false]  # Hans
-		if id == 197: return [EnemyType.BOSS, 0, false]  # Gretel
-		if id == 215: return [EnemyType.BOSS, 0, false]  # Gift
-		if id == 179: return [EnemyType.BOSS, 0, false]  # Fat
-		if id == 196: return [EnemyType.BOSS, 0, false]  # Schabbs
-		if id == 160: return [EnemyType.BOSS, 0, false]  # Fake Hitler
-		if id == 178: return [EnemyType.BOSS, 0, false]  # Hitler
+		if id == 214: return [EnemyType.BOSS, 0, false]
+		if id == 197: return [EnemyType.BOSS, 0, false]
+		if id == 215: return [EnemyType.BOSS, 0, false] 
+		if id == 179: return [EnemyType.BOSS, 0, false]
+		if id == 196: return [EnemyType.BOSS, 0, false]
+		if id == 160: return [EnemyType.BOSS, 0, false]
+		if id == 178: return [EnemyType.BOSS, 0, false]
 		
 		return [EnemyType.NONE, 0, false]
 	
-	# Dead guard decoration
 	static func is_dead_guard(id: int) -> bool:
 		return id == 124
 	
 	# Check if enemy should spawn for current difficulty
-	# Original Wolf3D skips medium/hard enemies if difficulty is too low
 	static func should_spawn_for_difficulty(id: int) -> bool:
 		var diff = GameState.difficulty
 		
-		# Guard: easy 108-115, med 144-151, hard 180-187
 		if id >= 180 and id <= 187: return diff >= GameState.Difficulty.HARD
 		if id >= 144 and id <= 151: return diff >= GameState.Difficulty.NORMAL
 		
-		# Officer: easy 116-123, med 152-159, hard 188-195
 		if id >= 188 and id <= 195: return diff >= GameState.Difficulty.HARD
 		if id >= 152 and id <= 159: return diff >= GameState.Difficulty.NORMAL
 		
-		# SS: easy 126-133, med 162-169, hard 198-205
 		if id >= 198 and id <= 205: return diff >= GameState.Difficulty.HARD
 		if id >= 162 and id <= 169: return diff >= GameState.Difficulty.NORMAL
 		
-		# Dog: easy 134-141, med 170-177, hard 206-213
 		if id >= 206 and id <= 213: return diff >= GameState.Difficulty.HARD
 		if id >= 170 and id <= 177: return diff >= GameState.Difficulty.NORMAL
 		
-		# Mutant: easy 216-223, med 234-241, hard 252-259
 		if id >= 252 and id <= 259: return diff >= GameState.Difficulty.HARD
 		if id >= 234 and id <= 241: return diff >= GameState.Difficulty.NORMAL
 		
-		# Easy difficulty enemies and bosses always spawn
 		return true
 
 
@@ -251,20 +224,15 @@ class MapGrid:
 			return false
 		return true
 
-	# layer 1 accessor
 	func tile_at(x: int, y: int) -> int:
 		return _tileGrid[y * height() + x]
 
-	# layer 2 accessor
 	func thing_at(x: int, y: int) -> int:
 		return _thingGrid[y * height() + x]
 
-@export var json_path : String = ""  # Set by GameState at runtime
+@export var json_path : String = ""
 var grid: MapGrid
 
-# NOTE: It is crucial that we use `add_child` in tandem with `@tool` annonated scripts.
-#		By doing this, anything we generate doesn't get serialized into the tscn file.
-#		This is precisely what we want, online-only generation of resources from raw data.
 var root_node: Node3D
 
 func _ready() -> void:
@@ -274,19 +242,16 @@ func _ready() -> void:
 	if not AssetExtractor.extraction_complete:
 		await AssetExtractor.extraction_finished
 	
-	# Check if we have a saved game state to restore
 	if GameState.has_saved_state():
 		print("MapLoader: Restoring saved game state")
 		_restore_saved_state()
 		return
 	
-	# Use selected map from GameState if available
 	var map_path = GameState.selected_map_path if GameState.selected_map_path != "" else json_path
 	print("MapLoader: Loading map from: ", map_path)
 	grid = MapGrid.new(map_path)
 	print("MapLoader: Map name: ", grid.map_name) 
 	
-	# Start level in GameState to reset stats
 	GameState.start_level()
 	
 	update_tile_material()
@@ -298,7 +263,6 @@ func _ready() -> void:
 func _restore_saved_state() -> void:
 	var state = GameState.saved_game_state
 	
-	# Restore GameState values
 	if state.has("health"):
 		GameState.health = state["health"]
 	if state.has("lives"):
@@ -332,21 +296,17 @@ func _restore_saved_state() -> void:
 	
 	print("MapLoader: Restored GameState - Health: ", GameState.health, ", Lives: ", GameState.lives, ", Ammo: ", GameState.ammo)
 	
-	# Load the map
 	var map_path = state.get("selected_map_path", json_path)
 	print("MapLoader: Restoring map from: ", map_path)
 	grid = MapGrid.new(map_path)
 	update_tile_material()
 	spawn_layer1()
 	
-	# Spawn layer2 but skip enemies (we'll spawn only saved ones)
 	spawn_layer2(true)
 	add_child(root_node)
 	
-	# Wait one frame for everything to be ready
 	await get_tree().process_frame
 	
-	# Restore player position
 	var player = get_tree().get_first_node_in_group("player")
 	if player and state.has("player_position"):
 		var pos_dict = state["player_position"]
@@ -354,17 +314,14 @@ func _restore_saved_state() -> void:
 		player.rotation.y = state.get("player_rotation", 0.0)
 		print("MapLoader: Player position restored to ", player.global_position)
 	
-	# Restore ONLY the enemies that were alive when we saved
 	if state.has("enemies"):
 		var saved_enemies = state["enemies"]
 		var enemy_scene = preload("res://Enemy.tscn")
 		
 		for saved_enemy in saved_enemies:
-			# Create new enemy instance
 			var enemy_node: Area3D = enemy_scene.instantiate()
 			enemy_node.name = "Enemy_Restored_%d" % saved_enemies.find(saved_enemy)
 			
-			# Restore all properties
 			var pos_dict = saved_enemy["position"]
 			enemy_node.global_position = Vector3(pos_dict["x"], pos_dict["y"], pos_dict["z"])
 			enemy_node.rotation.y = saved_enemy["rotation"]
@@ -381,17 +338,14 @@ func _restore_saved_state() -> void:
 		
 		print("MapLoader: Restored ", saved_enemies.size(), " enemies")
 	
-	# Restore corpses
 	if state.has("corpses"):
 		var saved_corpses = state["corpses"]
 		var enemy_scene = preload("res://Enemy.tscn")
 		
 		for saved_corpse in saved_corpses:
-			# Create corpse instance
 			var corpse_node: Area3D = enemy_scene.instantiate()
 			corpse_node.name = "Corpse_Restored_%d" % saved_corpses.find(saved_corpse)
 			
-			# Set corpse properties
 			var pos_dict = saved_corpse["position"]
 			corpse_node.global_position = Vector3(pos_dict["x"], pos_dict["y"], pos_dict["z"])
 			corpse_node.rotation.y = saved_corpse["rotation"]
@@ -403,18 +357,15 @@ func _restore_saved_state() -> void:
 			
 			root_node.add_child(corpse_node)
 			
-			# Wait a frame then show death sprite
 			await get_tree().process_frame
 			if corpse_node.has_method("_show_death_sprite"):
 				corpse_node._show_death_sprite()
-			# Disable collision
 			if corpse_node.has_node("CollisionShape3D"):
 				var col = corpse_node.get_node("CollisionShape3D")
 				col.disabled = true
 		
 		print("MapLoader: Restored ", saved_corpses.size(), " corpses")
 	
-	# Restore doors state
 	if state.has("doors"):
 		var saved_doors = state["doors"]
 		var doors = get_tree().get_nodes_in_group("doors")
@@ -426,25 +377,21 @@ func _restore_saved_state() -> void:
 			if grid_x < 0 or grid_y < 0:
 				continue
 			
-			# Find matching door by grid position
 			for door in doors:
 				if door and is_instance_valid(door):
 					var door_x = door.get_meta("grid_x") if door.has_meta("grid_x") else -1
 					var door_y = door.get_meta("grid_y") if door.has_meta("grid_y") else -1
 					
 					if door_x == grid_x and door_y == grid_y:
-						# Restore door state
 						door.current_state = saved_door.get("current_state", 0)
 						door.open_ratio = saved_door.get("open_ratio", 0.0)
 						door.auto_close_timer = saved_door.get("auto_close_timer", 0.0)
-						# Apply visual position
 						if door.has_method("_apply_slide"):
 							door._apply_slide()
 						break
 		
 		print("MapLoader: Restored ", saved_doors.size(), " doors state")
 	
-	# Restore pushwalls state
 	if state.has("pushwalls"):
 		var saved_pushwalls = state["pushwalls"]
 		var pushwalls = get_tree().get_nodes_in_group("pushwalls")
@@ -456,14 +403,12 @@ func _restore_saved_state() -> void:
 			if grid_x < 0 or grid_y < 0:
 				continue
 			
-			# Find matching pushwall by grid position
 			for pw in pushwalls:
 				if pw and is_instance_valid(pw):
 					var pw_x = pw.grid_x if "grid_x" in pw else -1
 					var pw_y = pw.grid_y if "grid_y" in pw else -1
 					
 					if pw_x == grid_x and pw_y == grid_y:
-						# Restore pushwall state
 						if pw.has_method("restore_push_state"):
 							pw.restore_push_state(saved_pw)
 						break
@@ -472,10 +417,8 @@ func _restore_saved_state() -> void:
 	
 	print("MapLoader: Game state restored successfully")
 	
-	# Clear saved state so it's not used again on death/restart
 	GameState.clear_saved_state()
 
-# Asset paths - computed dynamically based on selected game
 func _get_tile_texture_folder() -> String:
 	return "user://assets/%s/walls/" % GameState.selected_game
 
@@ -491,7 +434,6 @@ func update_tile_material() -> void:
 static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	const tex_size: int = 64
 
-	# USE DirAccess INSTEAD OF ResourceLoader for user:// paths
 	var dir = DirAccess.open(texture_folder)
 	if dir == null:
 		push_error("Cannot open directory: " + texture_folder)
@@ -510,7 +452,6 @@ static func _generate_texture_array(texture_folder: String) -> Texture2DArray:
 	
 	var images = []
 
-	# Load all valid texture files
 	for file in files:
 		var image: Image = Image.load_from_file(texture_folder + file)
 
@@ -568,7 +509,6 @@ func spawn_layer1() -> void:
 				door_inst.material_override = tile_material
 				door_inst.position = Vector3(x + 0.5, 0, y + 0.5)
 				door_inst.rotation_degrees.y += -90 * float(door_axis)
-				# Store grid position for save/load
 				door_inst.set_meta("grid_x", x)
 				door_inst.set_meta("grid_y", y)
 
@@ -587,24 +527,20 @@ func spawn_layer1() -> void:
 				pushwall_inst.mesh = pushwall_mesh
 				pushwall_inst.material_override = tile_material
 
-				# Mark pushwalls in the editor
 				if Engine.is_editor_hint():
 					pushwall_inst.material_overlay = pushwall_editor_overlay_mat
 
 				pushwall_inst.position = Vector3(x + 0.5, 0, y + 0.5)
 				
-				# Store grid reference and position
 				pushwall_inst.set("grid", grid)
 				pushwall_inst.set("grid_x", x)
 				pushwall_inst.set("grid_y", y)
 				
-				# Increment secret total
 				if GameState.level_stats:
 					GameState.level_stats.secret_total += 1
 
 				root_node.add_child(pushwall_inst)
 				
-				# Increment secret total
 				if GameState.level_stats:
 					GameState.level_stats.secret_total += 1
 
@@ -627,28 +563,23 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 				player_node.rotation_degrees.y = start_dir * -90
 				root_node.add_child(player_node)
 
-				# Ignore multiple start points even if present
 				added_player = true
 
 			elif L2Utils.is_static(id):
 				var static_idx = L2Utils.get_static_idx(id)
 				
-				# Check if this is a pickup item
 				if L2Utils.is_pickup(id):
-					# Create Pickup node with collision
 					var pickup = Pickup.new()
 					pickup.name = "Pickup_%d_%d" % [x, y]
 					pickup.position = Vector3(x + 0.5, 0, y + 0.5)
 					pickup.pickup_type = L2Utils.get_pickup_type(id)
 					
-					# Create collision shape
 					var collision = CollisionShape3D.new()
 					var shape = BoxShape3D.new()
 					shape.size = Vector3(0.5, 0.5, 0.5)
 					collision.shape = shape
 					pickup.add_child(collision)
 					
-					# Create sprite
 					var sprite: Sprite3D = Sprite3D.new()
 					sprite.name = "Sprite3D"
 					var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), static_idx]
@@ -667,13 +598,11 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 					
 					root_node.add_child(pickup)
 					
-					# Increment treasure total for score-giving items
 					if GameState.level_stats:
 						var p_type = L2Utils.get_pickup_type(id)
-						if p_type >= 8 and p_type <= 11: # CROSS, CHALICE, BIBLE, CROWN
+						if p_type >= 8 and p_type <= 11:
 							GameState.level_stats.treasure_total += 1
 				else:
-					# Regular static decoration (no pickup)
 					var sprite: Sprite3D = Sprite3D.new()
 					sprite.position = Vector3(x + 0.5, 0, y + 0.5)
 					
@@ -693,7 +622,6 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 					sprite.double_sided = false
 					sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 					
-					# Add collision for blocking statics (tables, lamps, columns, etc)
 					if L2Utils.is_blocking_static(id):
 						var static_body = StaticBody3D.new()
 						static_body.name = "StaticObject_%d_%d" % [x, y]
@@ -702,26 +630,21 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 						
 						var collision = CollisionShape3D.new()
 						var shape = CylinderShape3D.new()
-						shape.radius = 0.3  # Smaller than full tile
+						shape.radius = 0.3
 						shape.height = 1.0
 						collision.shape = shape
 						static_body.add_child(collision)
 						
-						# Add sprite to static body
 						sprite.position = Vector3.ZERO
 						static_body.add_child(sprite)
 						root_node.add_child(static_body)
 					else:
-						# Non-blocking decoration - just add sprite
 						root_node.add_child(sprite)
 			
-			# Spawn enemies
 			elif L2Utils.is_enemy(id):
-				# Skip spawning enemies if restoring saved state
 				if skip_enemies:
 					continue
 				
-				# Skip enemies that shouldn't spawn on current difficulty
 				if not L2Utils.should_spawn_for_difficulty(id):
 					continue
 				
@@ -730,41 +653,36 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 				var direction = enemy_info[1]
 				var is_patrol = enemy_info[2]
 				
-				# Calculate sprite index
 				var sprite_base_idx: int = 0
 				match enemy_type:
 					L2Utils.EnemyType.GUARD:
-						sprite_base_idx = 48  # SPR_GRD_S_1
+						sprite_base_idx = 48
 					L2Utils.EnemyType.DOG:
-						sprite_base_idx = 97  # SPR_DOG_W1_1 
+						sprite_base_idx = 97 
 					L2Utils.EnemyType.SS:
-						sprite_base_idx = 129  # SPR_SS_S_1
+						sprite_base_idx = 129
 					L2Utils.EnemyType.MUTANT:
-						sprite_base_idx = 152  # SPR_MUT_S_1
+						sprite_base_idx = 152
 					L2Utils.EnemyType.OFFICER:
-						sprite_base_idx = 177  # SPR_OFC_S_1
+						sprite_base_idx = 177
 					L2Utils.EnemyType.BOSS:
-						sprite_base_idx = 48  # Fallback to guard for now
+						sprite_base_idx = 48
 				
-				# Map direction to sprite offset
-				var dir_to_sprite = [0, 2, 4, 6]  # N->0, E->2, S->4, W->6
+				var dir_to_sprite = [0, 2, 4, 6]
 				var sprite_idx = sprite_base_idx + dir_to_sprite[direction]
 				
-				# Create enemy using the Enemy scene
 				var enemy_scene = preload("res://Enemy.tscn")
 				var enemy_node: Area3D = enemy_scene.instantiate()
 				enemy_node.name = "Enemy_%d_%d" % [x, y]
 				enemy_node.position = Vector3(x + 0.5, 0, y + 0.5)
 				enemy_node.rotation_degrees.y = direction * -90
 				
-				# Set up the enemy with proper type and sprite
 				enemy_node.enemy_type = enemy_type
 				enemy_node.sprite_texture_folder = _get_sprite_texture_folder()
 				enemy_node.set_meta("sprite_idx", sprite_idx)
 				enemy_node.set_meta("direction", direction)
 				enemy_node.set_meta("is_patrol", is_patrol)
 				
-				# Load and apply sprite texture to the scene's Sprite3D
 				var sprite: Sprite3D = enemy_node.get_node("Sprite3D")
 				if sprite:
 					var sprite_path = "%sSPR_STAT_%d.png" % [_get_sprite_texture_folder(), sprite_idx]
@@ -772,7 +690,6 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 					if img != null:
 						sprite.texture = ImageTexture.create_from_image(img)
 					else:
-						# Fallback to sprite 0 if not found
 						sprite_path = "%sSPR_STAT_0.png" % _get_sprite_texture_folder()
 						img = Image.load_from_file(sprite_path)
 						if img != null:
@@ -781,7 +698,6 @@ func spawn_layer2(skip_enemies: bool = false) -> void:
 				
 				root_node.add_child(enemy_node)
 				
-				# Increment kill total
 				if GameState.level_stats:
 					GameState.level_stats.kill_total += 1
 

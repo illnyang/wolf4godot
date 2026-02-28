@@ -15,7 +15,6 @@ const COLOR_HIGHLIGHT = Color(194.0/255.0, 194.0/255.0, 194.0/255.0)
 const COLOR_DEACTIVE = Color(0.5, 0.5, 0.5)
 const COLOR_VIEW_BORDER = Color(0.0, 65.0/255.0, 65.0/255.0)
 const COLOR_RED = Color(113.0/255.0, 0.0/255.0, 0.0/255.0)
-# Menu states
 enum MenuState { MAIN, EPISODE_SELECT, DIFFICULTY_SELECT, GAME_SELECT, MAP_SELECT, VIEW_SIZE, SAVE_GAME, LOAD_GAME, SOUND, CONTROL, READ_THIS }
 var current_state: MenuState = MenuState.MAIN
 var main_menu_index: int = 0
@@ -857,7 +856,7 @@ func _handle_main_menu_select() -> void:
 		7:  # View Scores
 			_show_high_scores()
 		8:  # Back to Demo - return to title loop
-			GameState.skip_to_title_loop = true  # Skip signon/PG13, go straight to title loop
+			GameState.skip_to_title_loop = true
 			MusicManager.play_track("NAZI_NOR")
 			get_tree().change_scene_to_file("res://TitleScreen.tscn")
 		9:  # Quit
@@ -1038,14 +1037,12 @@ func _show_read_this() -> void:
 	
 	_clear_menu_items()
 	
-	# Blue background like original
 	var bg = ColorRect.new()
 	bg.name = "ReadThisBG"
 	bg.color = Color(0.0, 0.0, 0.4)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	
-	# Help text pages
 	var help_pages = [
 		"WOLFENSTEIN 3D CONTROLS\n\n" +
 		"ARROW KEYS - Move forward/back, turn left/right\n" +
@@ -1065,7 +1062,6 @@ func _show_read_this() -> void:
 		"Good luck, soldier!"
 	]
 	
-	# Display current page
 	var content = Label.new()
 	content.name = "ReadThisContent"
 	content.text = help_pages[read_this_page]

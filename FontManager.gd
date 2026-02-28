@@ -1,5 +1,3 @@
-# FontManager.gd
-# Loads the original Wolfenstein 3D fonts extracted from VGAGRAPH
 extends Node
 
 var font1: Font
@@ -46,13 +44,10 @@ func _load_font_from_extracted(base_path: String) -> Font:
 	font.generate_mipmaps = false
 	
 	var height = json["height"]
-	# Godot FontFile expects data in a specific way for bitmap fonts
-	# But creating it manually glyph by glyph is easier with FontVariation or custom logic
-	# Actually, in Godot 4, we can add a texture and then add glyphs to it.
 	
 	var h_int = int(height)
-	var size_vec = Vector2i(h_int, 0) # Font size and outline size (0)
-	var cache_id = 0 # Default cache
+	var size_vec = Vector2i(h_int, 0)
+	var cache_id = 0
 	font.set_texture_image(cache_id, size_vec, 0, image)
 	
 	print("[FontManager] Loading font with height=%d from %s" % [h_int, base_path])
@@ -67,12 +62,8 @@ func _load_font_from_extracted(base_path: String) -> Font:
 		var y = float(char_info["y"])
 		var width = float(char_info["width"])
 		
-		# Add glyph to Cache
-		# Godot 4 API inconsistency:
-		# set_glyph_advance takes an INT for size
- 		# set_glyph_offset/size/uv_rect take a VECTOR2I for size
 		font.set_glyph_advance(cache_id, h_int, char_code, Vector2(width, 0))
-		font.set_glyph_offset(cache_id, size_vec, char_code, Vector2.ZERO) # No offset needed for bitmap fonts
+		font.set_glyph_offset(cache_id, size_vec, char_code, Vector2.ZERO)
 		font.set_glyph_size(cache_id, size_vec, char_code, Vector2(width, h_int))
 		font.set_glyph_uv_rect(cache_id, size_vec, char_code, Rect2(x, y, width, h_int))
 		font.set_glyph_texture_idx(cache_id, size_vec, char_code, 0)

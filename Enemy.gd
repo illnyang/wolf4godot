@@ -209,17 +209,14 @@ func _physics_process(delta: float) -> void:
 # ============================================================================
 
 func _t_stand(_delta: float) -> void:
-	# Just look for the player (original: T_Stand just calls SightPlayer)
 	if _sight_player():
 		_first_sighting()
 
 func _t_path(delta: float) -> void:
-	# Patrolling - check for player first
 	if _sight_player():
 		_first_sighting()
 		return
 	
-	# Move along patrol path
 	if direction == Dir.NODIR:
 		_select_path_dir()
 		if direction == Dir.NODIR:
@@ -232,7 +229,6 @@ func _t_path(delta: float) -> void:
 			_move_obj(move)
 			break
 		
-		# Reached tile center
 		position.x = tilex + 0.5
 		position.z = tiley + 0.5
 		move -= distance
@@ -244,7 +240,6 @@ func _t_path(delta: float) -> void:
 func _t_chase(delta: float) -> void:
 	var dodge = false
 	
-	# Check if we can shoot
 	if _check_line():
 		var dx = abs(tilex - int(floor(player.position.x)))
 		var dy = abs(tiley - int(floor(player.position.z)))
@@ -257,14 +252,12 @@ func _t_chase(delta: float) -> void:
 			chance = 0.05 / dist
 		
 		if randf() < chance:
-			# Go into attack state
 			state = State.SHOOT
 			shoot_timer = 0.0
 			return
 		
 		dodge = true
 	
-	# Select movement direction
 	if direction == Dir.NODIR:
 		if dodge:
 			_select_dodge_dir()
@@ -280,7 +273,6 @@ func _t_chase(delta: float) -> void:
 			_move_obj(move)
 			break
 		
-		# Reached tile center
 		position.x = tilex + 0.5
 		position.z = tiley + 0.5
 		move -= distance
@@ -294,7 +286,6 @@ func _t_chase(delta: float) -> void:
 			return
 
 func _t_dog_chase(delta: float) -> void:
-	# Dogs don't shoot, they bite
 	if direction == Dir.NODIR:
 		_select_dodge_dir()
 		if direction == Dir.NODIR:
@@ -303,14 +294,12 @@ func _t_dog_chase(delta: float) -> void:
 	var move = speed * delta
 	
 	while move > 0:
-		# Check if close enough to bite
 		var dx = abs(position.x - player.position.x)
 		var dz = abs(position.z - player.position.z)
 		
 		if dx <= 0.8 and dz <= 0.8:
-			# Bite attack!
 			_t_bite()
-			state = State.CHASE  # Continue chasing
+			state = State.CHASE
 			return
 		
 		if move < distance:
@@ -334,7 +323,6 @@ func _t_shoot_state(delta: float) -> void:
 		direction = Dir.NODIR
 
 func _t_pain(_delta: float) -> void:
-	# Brief pain state then return to chase
 	await get_tree().create_timer(0.15).timeout
 	state = State.CHASE
 	direction = Dir.NODIR
@@ -344,26 +332,18 @@ func _t_pain(_delta: float) -> void:
 # ============================================================================
 
 func _t_shoot() -> void:
-	# Original Wolf3D: T_Shoot (WL_ACT2.C)
-	# Check line of sight first - player MUST be visible
 	if not _check_line():
 		return
 	
 	var dx = abs(tilex - int(floor(player.position.x)))
 	var dy = abs(tiley - int(floor(player.position.z)))
 	var dist = max(dx, dy)
-	
-	# Maximum effective shooting distance (original had ~20 tiles practical limit)
-	# At dist > 15, hitchance becomes very low anyway
 	if dist > 20:
 		return
 	
-	# SS and Boss are better shots (2/3 effective distance)
 	if enemy_type == EnemyType.SS or enemy_type == EnemyType.BOSS:
 		dist = int(dist * 2.0 / 3.0)
-	
-	# Calculate hit chance based on player visibility and movement
-	# Original: 256 - dist*16 if visible moving, 256 - dist*8 if standing still
+
 	var hitchance: int
 	var player_moving = false
 	if player.has_method("get_velocity"):
@@ -373,49 +353,42 @@ func _t_shoot() -> void:
 		player_moving = player.velocity.length() > 2.0
 	
 	if player_moving:
-		# Player can see to dodge - harder for enemy to hit
 		hitchance = 160 - dist * 16
 	else:
-		# Player standing still - easier target
 		hitchance = 256 - dist * 8
 	
 	hitchance = clamp(hitchance, 0, 256)
 	
-	# Roll for hit
 	if randi() % 256 < hitchance:
-		# Hit! Calculate damage based on distance
+		# Calculate damage based on distance
 		var damage: int
 		if dist < 2:
-			damage = randi() % 64  # >> 2
+			damage = randi() % 64 
 		elif dist < 4:
-			damage = randi() % 32  # >> 3
+			damage = randi() % 32  
 		else:
-			damage = randi() % 16  # >> 4
+			damage = randi() % 16
 		
 		damage = max(1, damage)
 		
-		# Deal damage to player
+		
 		if player.has_method("take_damage"):
 			player.take_damage(damage, self)
 	
-	# Play sound regardless of hit/miss (original behavior)
 	SoundManager.play_sfx("NAZIFIRESND")
 
 
 
 func _t_bite() -> void:
-	# Dog bite attack
 	SoundManager.play_sfx("DOGATTACKSND")
 	
 	var dx = abs(position.x - player.position.x)
 	var dz = abs(position.z - player.position.z)
 	
 	if dx <= 1.0 and dz <= 1.0:
-		# 70% chance to hit
 		if randi() % 256 < 180:
 			var damage = randi() % 16
 			damage = max(1, damage)
-			# Pass self as attacker for death sequence
 			if player.has_method("take_damage"):
 				player.take_damage(damage, self)
 
@@ -424,31 +397,23 @@ func _t_bite() -> void:
 # ============================================================================
 
 func _sight_player() -> bool:
-	# Already in attack mode? Error in original, we just return false
 	if in_attack_mode:
 		return false
 	
-	# Reaction countdown
 	if reaction_countdown > 0:
 		reaction_countdown -= get_physics_process_delta_time()
 		if reaction_countdown > 0:
 			return false
-		# Time to react!
 		return true
 	
-	# Check if we can see/hear the player
 	if is_ambush:
-		# Ambush enemies only react to sight
 		if not _check_sight():
 			return false
 		is_ambush = false
 	else:
-		# Can hear noise (player shooting) or see player
-		# For now, just use sight
 		if not _check_sight():
 			return false
 	
-	# Set reaction time and return false (will react next frame)
 	var rt = REACTION_TIMES.get(enemy_type, [0.1, 0.3])
 	reaction_countdown = randf_range(rt[0], rt[1])
 	return false
@@ -457,15 +422,12 @@ func _check_sight() -> bool:
 	if player == null:
 		return false
 	
-	# Distance check first
 	var delta_vec = player.position - position
 	delta_vec.y = 0
 	
-	# If very close, automatic sight
 	if delta_vec.length() < 1.5:
 		return _check_line()
 	
-	# Check if facing the right direction (only for cardinal directions)
 	if direction != Dir.NODIR and direction < 8:
 		match direction:
 			Dir.NORTH:
@@ -484,17 +446,14 @@ func _check_sight() -> bool:
 	return _check_line()
 
 func _check_line() -> bool:
-	# Tile-based line of sight check using Bresenham's algorithm
-	# Check each tile between enemy and player for walls/doors
 	if player == null or grid == null:
-		return false  # Assume NOT visible if no grid (safer default)
+		return false
 	
 	var x0 = tilex
 	var y0 = tiley
 	var x1 = int(floor(player.position.x))
 	var y1 = int(floor(player.position.z))
 	
-	# If same tile, definitely visible
 	if x0 == x1 and y0 == y1:
 		return true
 	
@@ -507,7 +466,6 @@ func _check_line() -> bool:
 	var x = x0
 	var y = y0
 	
-	# Step through tiles from enemy to player
 	while true:
 		# Calculate next position FIRST
 		var e2 = 2 * err
@@ -525,33 +483,26 @@ func _check_line() -> bool:
 		x = next_x
 		y = next_y
 		
-		# Reached player tile - success!
 		if x == x1 and y == y1:
 			return true
 		
-		# Check if this intermediate tile blocks sight
 		if not grid.is_within_grid(x, y):
 			return false
 		
 		var tile_id = grid.tile_at(x, y)
 		
-		# Walls block sight (tile_id 1-53 are walls)
 		if tile_id >= 1 and tile_id <= 53:
 			return false
 		
-		# Doors block sight/shots only if closed or barely open (90-101 are doors)
 		if tile_id >= 90 and tile_id <= 101:
 			var door = _find_door_at(x, y)
 			if door:
-				# Bullets can pass through doors that are 30%+ open
 				var open_ratio = door.get("open_ratio")
 				if open_ratio != null and open_ratio < 0.3:
 					return false
 			elif door == null:
-				# Door tile but no door object found - assume closed
 				return false
 		
-		# Safety: if we've gone too far, break
 		if abs(x - x0) > 64 or abs(y - y0) > 64:
 			return false
 	
@@ -593,13 +544,11 @@ func _select_chase_dir() -> void:
 	elif deltay < 0:
 		d[1] = Dir.NORTH
 	
-	# Prefer the longer axis
 	if abs(deltay) > abs(deltax):
 		var temp = d[0]
 		d[0] = d[1]
 		d[1] = temp
 	
-	# Avoid turnaround
 	var turnaround = OPPOSITE[direction] if direction != Dir.NODIR else Dir.NODIR
 	
 	if d[0] == turnaround:
@@ -607,7 +556,6 @@ func _select_chase_dir() -> void:
 	if d[1] == turnaround:
 		d[1] = Dir.NODIR
 	
-	# Try directions
 	if d[0] != Dir.NODIR:
 		direction = d[0]
 		if _try_walk():
@@ -618,7 +566,6 @@ func _select_chase_dir() -> void:
 		if _try_walk():
 			return
 	
-	# Try other directions randomly
 	var dirs = [Dir.NORTH, Dir.EAST, Dir.SOUTH, Dir.WEST]
 	dirs.shuffle()
 	for dir in dirs:
@@ -627,7 +574,6 @@ func _select_chase_dir() -> void:
 			if _try_walk():
 				return
 	
-	# Last resort: turnaround
 	if turnaround != Dir.NODIR:
 		direction = turnaround
 		if _try_walk():
@@ -645,7 +591,6 @@ func _select_dodge_dir() -> void:
 	
 	var dirtry = [Dir.NODIR, Dir.NODIR, Dir.NODIR, Dir.NODIR, Dir.NODIR]
 	
-	# Set up direction preferences
 	if deltax > 0:
 		dirtry[1] = Dir.EAST
 		dirtry[3] = Dir.WEST
@@ -677,7 +622,6 @@ func _select_dodge_dir() -> void:
 		dirtry[3] = dirtry[4]
 		dirtry[4] = temp
 	
-	# Calculate diagonal
 	if dirtry[1] == Dir.EAST and dirtry[2] == Dir.NORTH:
 		dirtry[0] = Dir.NORTHEAST
 	elif dirtry[1] == Dir.EAST and dirtry[2] == Dir.SOUTH:
@@ -707,8 +651,6 @@ func _select_dodge_dir() -> void:
 	direction = Dir.NODIR
 
 func _select_path_dir() -> void:
-	# TODO: Read arrow markers from map for patrol paths
-	# For now, just use chase direction slowly
 	_select_chase_dir()
 	distance = 1.0
 
@@ -717,10 +659,8 @@ func _is_position_blocked(pos: Vector3) -> bool:
 	if grid == null:
 		return false
 	
-	# Check collision with a radius (enemies have width, not just a point)
-	var enemy_radius = 0.3  # Enemies take up space, not just a single point
+	var enemy_radius = 0.3
 	
-	# Check 4 corners of the enemy's bounding box
 	var corners = [
 		Vector2(pos.x - enemy_radius, pos.z - enemy_radius),
 		Vector2(pos.x + enemy_radius, pos.z - enemy_radius),
@@ -812,18 +752,15 @@ func _move_obj(move: float) -> void:
 	var move_vec = DIR_VECTORS.get(direction, Vector3.ZERO) * move
 	var new_pos = position + move_vec
 	
-	# Check if new position is blocked by walls or doors
 	if _is_position_blocked(new_pos):
 		direction = Dir.NODIR
 		distance = 0.0
 		return
 	
-	# Check player collision
 	if player:
 		var delta_vec = new_pos - player.position
 		delta_vec.y = 0
 		if delta_vec.length() < 0.5:
-			# Too close to player, back up
 			return
 	
 	position = new_pos
@@ -839,7 +776,6 @@ func _first_sighting() -> void:
 	first_attack = true
 	direction = Dir.NODIR
 	
-	# Turn toward player if needed
 	if player:
 		var dx = player.position.x - position.x
 		var dz = player.position.z - position.z
@@ -851,7 +787,6 @@ func _first_sighting() -> void:
 	
 	state = State.CHASE
 	
-	# Play alert sound
 	match enemy_type:
 		EnemyType.GUARD:
 			SoundManager.play_sfx("HALTSND")
@@ -875,7 +810,6 @@ func take_damage(amount: int) -> void:
 	if health <= 0:
 		die()
 	else:
-		# Pain state
 		state = State.PAIN
 		in_attack_mode = true
 		first_attack = true
@@ -884,22 +818,16 @@ func die() -> void:
 	if is_dead:
 		return
 	
-	is_dead = true
-	state = State.DIE
-	
-	# Award points to player (authentic Wolf3D values)
+
 	var points = POINT_VALUES.get(enemy_type, 100)
 	GameState.give_points(points)
 	
-	# Increment kill count for level stats
 	if GameState.level_stats:
 		GameState.level_stats.kill_count += 1
 	
-	# Disable collision
 	if collision_shape:
 		collision_shape.set_deferred("disabled", true)
 	
-	# Play death sound
 	match enemy_type:
 		EnemyType.GUARD:
 			SoundManager.play_sfx("DEATHSCREAM1SND")
@@ -912,10 +840,8 @@ func die() -> void:
 		_:
 			SoundManager.play_sfx("DEATHSCREAM1SND")
 	
-	# Show death sprite
 	_show_death_sprite()
 	
-	# Emit signal
 	died.emit(self)
 	
 	await get_tree().create_timer(3.0).timeout
@@ -927,14 +853,11 @@ func _show_death_sprite() -> void:
 	
 	# Calculate death sprite
 	# Death sprite layout varies by enemy type
-	# Humanoids: PAIN_1(+40), DIE_1(+41), DIE_2(+42), DIE_3(+43), PAIN_2(+44), DEAD(+45)
-	# Dog: 32 walk sprites + DIE_1(+32), DIE_2(+33), DIE_3(+34), DEAD(+35)
 	var base = SPRITE_BASES.get(enemy_type, 48)
 	var death_offset = 45  # Default for humanoid enemies
 	
-	# Dog has different sprite layout: 32 walk + 3 die + 1 dead + 3 jump = 39 total
 	if enemy_type == EnemyType.DOG:
-		death_offset = 35  # Dog DEAD sprite is at base+35 (97+35=132)
+		death_offset = 35
 	
 	var death_sprite_idx = base + death_offset
 	
@@ -962,24 +885,9 @@ func _update_sprite() -> void:
 		return
 	
 	# Calculate sprite index based on direction and frame
-	# Wolf3D sprite layout per enemy type:
-	# Humanoids (Guard/Officer/SS/Mutant):
-	# - 0-7: Standing sprites (8 directions)
-	# - 8-39: Walk frames 1-4 (4 frames × 8 directions = 32 sprites)
-	# - 40-45: Pain/Die sprites (PAIN_1, DIE_1, DIE_2, DIE_3, PAIN_2, DEAD)
-	# - 46-48: Shoot sprites (SHOOT1, SHOOT2, SHOOT3)
-	# 
-	# Dog (different layout - no standing/shooting, no pain states):
-	# - 0-31: Walk frames 1-4 (4 frames × 8 directions = 32 sprites)
-	# - 32-34: Die sprites (DIE_1, DIE_2, DIE_3)
-	# - 35: DEAD sprite
-	# - 36-38: Jump sprites (JUMP1, JUMP2, JUMP3)
-	
 	var base = SPRITE_BASES.get(enemy_type, 48)
 	var sprite_idx = base
-	
-	# Calculate rotation based on viewing angle (CalcRotate from WL_DRAW.C)
-	# This determines which of the 8 rotations to show based on player's view
+
 	var rotation_offset = _calc_rotate()
 	
 	if state == State.STAND:
@@ -1012,29 +920,21 @@ func _calc_rotate() -> int:
 		var camera = player.get_node("Camera3D")
 		player_angle = camera.global_rotation.y
 	else:
-		# Fallback: use player's rotation
 		player_angle = player.global_rotation.y
 	
-	# Calculate angle from player to enemy (view angle)
 	var dx = position.x - player.global_position.x
 	var dz = position.z - player.global_position.z
 	var angle_to_enemy = atan2(dz, dx)
 	
-	# Calculate which direction the enemy is facing
-	# direction is 0-7 (N, NE, E, SE, S, SW, W, NW)
-	var enemy_facing_angle = direction * (PI / 4.0)  # Convert direction to radians
+	var enemy_facing_angle = direction * (PI / 4.0)
 	
-	# Calculate relative angle: (player's view to enemy) - (enemy's facing direction)
-	# This gives us which sprite rotation to show
 	var relative_angle = (angle_to_enemy - player_angle) - enemy_facing_angle
 	
-	# Normalize angle to 0-TAU range
 	while relative_angle < 0:
 		relative_angle += TAU
 	while relative_angle >= TAU:
 		relative_angle -= TAU
 	
-	# Convert to 0-7 sprite rotation index
 	var rotation = int((relative_angle + PI / 8.0) / (PI / 4.0))
 	rotation = rotation % 8
 	

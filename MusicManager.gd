@@ -1,11 +1,9 @@
-# MusicManager.gd - Plays extracted Wolf3D music (WAV files)
 extends Node
 
 var music_player: AudioStreamPlayer
 var current_track: String = ""
 var music_cache: Dictionary = {}
 
-# Track name to file mapping
 const TITLE_MUSIC = "INTROCW3"  # Wolf3D title theme (intro song)
 const MENU_MUSIC = "WONDERIN"   # Wolf3D menu music
 const LEVEL_MUSIC = ["GETTHEM", "SEARCHN", "POW", "SUSPENSE", "WARMARCH", 
@@ -44,7 +42,6 @@ func _load_music(track_name: String) -> AudioStream:
 	if music_cache.has(track_name):
 		return music_cache[track_name]
 	
-	# Try loading from extracted music folder
 	var music_path = GameState.get_music_path() + "%s.wav" % track_name
 	
 	var stream = _load_wav_file(music_path)
@@ -61,34 +58,30 @@ func _load_wav_file(path: String) -> AudioStreamWAV:
 	if file == null:
 		return null
 	
-	# Read WAV header
 	var riff = file.get_buffer(4).get_string_from_ascii()
 	if riff != "RIFF":
 		file.close()
 		return null
 	
-	file.get_32()  # File size
+	file.get_32()
 	var wave = file.get_buffer(4).get_string_from_ascii()
 	if wave != "WAVE":
 		file.close()
 		return null
 	
-	# Read fmt chunk
-	file.get_buffer(4)  # "fmt "
+	file.get_buffer(4)
 	var fmt_size = file.get_32()
-	file.get_16()  # Audio format
+	file.get_16()
 	var num_channels = file.get_16()
 	var sample_rate = file.get_32()
-	file.get_32()  # Byte rate
-	file.get_16()  # Block align
+	file.get_32()
+	file.get_16()
 	var bits_per_sample = file.get_16()
 	
-	# Skip extra fmt data if present
 	if fmt_size > 16:
 		file.get_buffer(fmt_size - 16)
 	
-	# Read data chunk
-	file.get_buffer(4)  # "data"
+	file.get_buffer(4)
 	var data_size = file.get_32()
 	var audio_data = file.get_buffer(data_size)
 	file.close()

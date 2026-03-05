@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://b1n3pwlh21gf7"]
+[gd_scene format=3 uid="uid://b1n3pwlh21gf7"]
 
-[ext_resource type="Script" uid="uid://c3titlescreengd" path="res://TitleScreen.gd" id="1_title"]
+[ext_resource type="Script" uid="uid://b8agyq85awia5" path="res://TitleScreen.gd" id="1_title"]
 
-[node name="TitleScreen" type="Control"]
+[node name="TitleScreen" type="Control" unique_id=1985259277]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

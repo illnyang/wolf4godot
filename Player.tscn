@@ -1,33 +1,33 @@
-[gd_scene load_steps=5 format=3 uid="uid://w2asrbrmjqgp"]
+[gd_scene format=3 uid="uid://w2asrbrmjqgp"]
 
-[ext_resource type="Script" uid="uid://bd8bu2k6fd7kv" path="res://Player.gd" id="1_xhfnw"]
-[ext_resource type="Script" uid="uid://nx8mq3sgsgym" path="res://WeaponManager.gd" id="2_kpjcp"]
+[ext_resource type="Script" uid="uid://crtqv8eiuctwl" path="res://Player.gd" id="1_xhfnw"]
+[ext_resource type="Script" uid="uid://cskmtqjpgf8xb" path="res://WeaponManager.gd" id="2_kpjcp"]
 [ext_resource type="PackedScene" uid="uid://b8yqx5j2v5n8r" path="res://MobileControls.tscn" id="3_mobile"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_xhfnw"]
 radius = 0.28
 height = 1.8
 
-[node name="Player" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D" unique_id=1140750885]
 script = ExtResource("1_xhfnw")
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=2006964516]
 current = true
 fov = 61.0
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1211269832]
 shape = SubResource("CapsuleShape3D_xhfnw")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=218279134]
 
-[node name="WeponUI" type="Control" parent="CanvasLayer"]
+[node name="WeponUI" type="Control" parent="CanvasLayer" unique_id=203735714]
 layout_mode = 3
 anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="CanvasLayer/WeponUI"]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="CanvasLayer/WeponUI" unique_id=761837338]
 position = Vector2(406, 121)
 script = ExtResource("2_kpjcp")
 
-[node name="MobileControls" parent="." instance=ExtResource("3_mobile")]
+[node name="MobileControls" parent="." unique_id=1839508380 instance=ExtResource("3_mobile")]

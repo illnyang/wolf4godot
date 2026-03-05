@@ -1,19 +1,19 @@
-[gd_scene load_steps=4 format=3 uid="uid://ddxqf62oqs8cm"]
+[gd_scene format=3 uid="uid://ddxqf62oqs8cm"]
 
-[ext_resource type="Script" uid="uid://ccpo1cd111mrl" path="res://main.gd" id="1_0xm2m"]
-[ext_resource type="Script" uid="uid://f71oequ0pnwf" path="res://extract_wolf3d.gd" id="5_lquwl"]
-[ext_resource type="Script" uid="uid://cg5xvvrisknpl" path="res://MainMenu.gd" id="6_menu"]
+[ext_resource type="Script" uid="uid://38uufdqi5efx" path="res://main.gd" id="1_0xm2m"]
+[ext_resource type="Script" uid="uid://jqq7ljci43vl" path="res://extract_wolf3d.gd" id="5_lquwl"]
+[ext_resource type="Script" uid="uid://tfpw65w18nq5" path="res://MainMenu.gd" id="6_menu"]
 
-[node name="Main" type="Control"]
+[node name="Main" type="Control" unique_id=1787088670]
 layout_mode = 3
 anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("1_0xm2m")
 
-[node name="MainMenu" type="CanvasLayer" parent="."]
+[node name="MainMenu" type="CanvasLayer" parent="." unique_id=885962350]
 
-[node name="MenuControl" type="Control" parent="MainMenu"]
+[node name="MenuControl" type="Control" parent="MainMenu" unique_id=524255525]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -22,5 +22,5 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("6_menu")
 
-[node name="AssetExtractor" type="Node" parent="."]
+[node name="AssetExtractor" type="Node" parent="." unique_id=438674321]
 script = ExtResource("5_lquwl")

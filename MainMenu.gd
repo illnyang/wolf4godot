@@ -83,8 +83,7 @@ func _ready() -> void:
 		await AssetExtractor.extraction_finished
 	if not FontManager.font1 or not FontManager.font2:
 		await FontManager.fonts_loaded
-	var TestRunner = preload("res://tests/test_extraction.gd")
-	TestRunner.run_all()
+
 	_calculate_scale()
 	_load_pics()
 	_detect_games()

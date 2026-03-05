@@ -413,10 +413,3 @@ func _check_shot_line(from: Vector3, to: Vector3) -> bool:
 			z += sz
 	
 	return true
-
-func _start_benchmark():
-	var PerfMonitor = preload("res://tests/performance_monitor.gd")
-	var perf = PerfMonitor.new()
-	add_child(perf)
-	perf.start_benchmark(10.0)
-	

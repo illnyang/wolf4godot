@@ -1,28 +1,28 @@
 [gd_scene format=3 uid="uid://bwlp1654240cs"]
 
-[ext_resource type="Script" uid="uid://dke5k8nmd2gvh" path="res://SceneRoot.gd" id="1_55onw"]
-[ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://Player.tscn" id="2_w4mwi"]
-[ext_resource type="Script" uid="uid://cknqhxbntx0oi" path="res://MapLoader.gd" id="3_en2fo"]
-[ext_resource type="Script" uid="uid://d2hamaftrhjf1" path="res://SoundPlayer.gd" id="3_x42b1"]
-[ext_resource type="Script" uid="uid://b8dy0v5b7dr0f" path="res://hud.gd" id="4_x42b1"]
-[ext_resource type="Script" uid="uid://b4264aoea8m6d" path="res://GameViewport.gd" id="5_gvscript"]
+[ext_resource type="Script" uid="uid://dke5k8nmd2gvh" path="res://SceneRoot.gd" id="1_yb5yp"]
+[ext_resource type="PackedScene" uid="uid://w2asrbrmjqgp" path="res://Player.tscn" id="2_odym3"]
+[ext_resource type="Script" uid="uid://cknqhxbntx0oi" path="res://MapLoader.gd" id="3_yke1a"]
+[ext_resource type="Script" uid="uid://d2hamaftrhjf1" path="res://SoundPlayer.gd" id="4_owcav"]
+[ext_resource type="Script" uid="uid://b8dy0v5b7dr0f" path="res://hud.gd" id="5_4aho6"]
+[ext_resource type="Script" uid="uid://b4264aoea8m6d" path="res://GameViewport.gd" id="6_xf31v"]
 
-[sub_resource type="World3D" id="World3D_game"]
+[sub_resource type="World3D" id="World3D_1nmot"]
 
 [node name="SceneRoot" type="Node3D" unique_id=1502743739]
 physics_interpolation_mode = 1
-script = ExtResource("1_55onw")
-player_scene = ExtResource("2_w4mwi")
+script = ExtResource("1_yb5yp")
+player_scene = ExtResource("2_odym3")
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=1334421616]
-script = ExtResource("3_x42b1")
+script = ExtResource("4_owcav")
 
 [node name="GameViewport" type="Control" parent="." unique_id=705767727]
 layout_mode = 3
 anchors_preset = 0
 offset_right = 640.0
 offset_bottom = 320.0
-script = ExtResource("5_gvscript")
+script = ExtResource("6_xf31v")
 
 [node name="Background" type="ColorRect" parent="GameViewport" unique_id=1931570968]
 layout_mode = 0
@@ -38,14 +38,14 @@ stretch = true
 
 [node name="SubViewport" type="SubViewport" parent="GameViewport/SubViewportContainer" unique_id=1222497760]
 own_world_3d = true
-world_3d = SubResource("World3D_game")
+world_3d = SubResource("World3D_1nmot")
 handle_input_locally = false
 size = Vector2i(640, 320)
 render_target_update_mode = 4
 
 [node name="MapLoader" type="Node3D" parent="GameViewport/SubViewportContainer/SubViewport" unique_id=1119640680]
-script = ExtResource("3_en2fo")
+script = ExtResource("3_yke1a")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=95982868]
 layer = 10
-script = ExtResource("4_x42b1")
+script = ExtResource("5_4aho6")

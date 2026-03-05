@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://b1n3pwlh21gf7"]
 
-[ext_resource type="Script" uid="uid://b8agyq85awia5" path="res://TitleScreen.gd" id="1_title"]
+[ext_resource type="Script" uid="uid://b8agyq85awia5" path="res://TitleScreen.gd" id="1_qib46"]
 
 [node name="TitleScreen" type="Control" unique_id=1985259277]
 layout_mode = 3
@@ -9,4 +9,4 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_title")
+script = ExtResource("1_qib46")

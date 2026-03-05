@@ -1,14 +1,14 @@
 [gd_scene format=3 uid="uid://b8yqx5j2v5n8r"]
 
-[ext_resource type="Script" uid="uid://bj32a53aa4dey" path="res://MobileControls.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://da8rmb8upjyvk" path="res://ui/joystick_base.jpg" id="2_base"]
-[ext_resource type="Texture2D" uid="uid://cps432fjm3pq4" path="res://ui/joystick_tip.jpg" id="3_tip"]
-[ext_resource type="Texture2D" uid="uid://c8ln20twq6uc" path="res://ui/icon_fire.jpg" id="4_fire"]
-[ext_resource type="Texture2D" uid="uid://j18h5yt623j8" path="res://ui/icon_door.jpg" id="5_door"]
-[ext_resource type="Texture2D" uid="uid://oljvmgfxj3lj" path="res://ui/icon_menu.jpg" id="6_menu"]
+[ext_resource type="Script" uid="uid://bj32a53aa4dey" path="res://MobileControls.gd" id="1_ixuei"]
+[ext_resource type="Texture2D" uid="uid://da8rmb8upjyvk" path="res://ui/joystick_base.jpg" id="2_jsutk"]
+[ext_resource type="Texture2D" uid="uid://cps432fjm3pq4" path="res://ui/joystick_tip.jpg" id="3_bq7du"]
+[ext_resource type="Texture2D" uid="uid://c8ln20twq6uc" path="res://ui/icon_fire.jpg" id="4_mj6nx"]
+[ext_resource type="Texture2D" uid="uid://j18h5yt623j8" path="res://ui/icon_door.jpg" id="5_gpxtg"]
+[ext_resource type="Texture2D" uid="uid://oljvmgfxj3lj" path="res://ui/icon_menu.jpg" id="6_sypaf"]
 
 [node name="MobileControls" type="CanvasLayer" unique_id=2007682455]
-script = ExtResource("1_script")
+script = ExtResource("1_ixuei")
 
 [node name="Joystick" type="Control" parent="." unique_id=1071232892]
 layout_mode = 3
@@ -34,7 +34,7 @@ offset_right = 100.0
 offset_bottom = 100.0
 grow_horizontal = 2
 grow_vertical = 2
-texture = ExtResource("2_base")
+texture = ExtResource("2_jsutk")
 expand_mode = 1
 stretch_mode = 5
 
@@ -51,27 +51,27 @@ offset_right = 40.0
 offset_bottom = 40.0
 grow_horizontal = 2
 grow_vertical = 2
-texture = ExtResource("3_tip")
+texture = ExtResource("3_bq7du")
 expand_mode = 1
 stretch_mode = 5
 
 [node name="ShootButton" type="TouchScreenButton" parent="." unique_id=838313322]
 position = Vector2(950, 420)
 scale = Vector2(0.3, 0.3)
-texture_normal = ExtResource("4_fire")
+texture_normal = ExtResource("4_mj6nx")
 action = "shoot"
 visibility_mode = 1
 
 [node name="InteractButton" type="TouchScreenButton" parent="." unique_id=1406049294]
 position = Vector2(820, 480)
 scale = Vector2(0.2, 0.2)
-texture_normal = ExtResource("5_door")
+texture_normal = ExtResource("5_gpxtg")
 action = "action"
 visibility_mode = 1
 
 [node name="MenuButton" type="TouchScreenButton" parent="." unique_id=107358069]
 position = Vector2(1080, 50)
 scale = Vector2(0.15, 0.15)
-texture_normal = ExtResource("6_menu")
+texture_normal = ExtResource("6_sypaf")
 action = "ui_cancel"
 visibility_mode = 1

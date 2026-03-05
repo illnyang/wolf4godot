@@ -1,15 +1,15 @@
 [gd_scene format=3 uid="uid://ddxqf62oqs8cm"]
 
-[ext_resource type="Script" uid="uid://38uufdqi5efx" path="res://main.gd" id="1_0xm2m"]
-[ext_resource type="Script" uid="uid://jqq7ljci43vl" path="res://extract_wolf3d.gd" id="5_lquwl"]
-[ext_resource type="Script" uid="uid://tfpw65w18nq5" path="res://MainMenu.gd" id="6_menu"]
+[ext_resource type="Script" uid="uid://38uufdqi5efx" path="res://main.gd" id="1_qmd84"]
+[ext_resource type="Script" uid="uid://jqq7ljci43vl" path="res://extract_wolf3d.gd" id="2_hwrk2"]
+[ext_resource type="Script" uid="uid://tfpw65w18nq5" path="res://MainMenu.gd" id="3_bbjv2"]
 
 [node name="Main" type="Control" unique_id=1787088670]
 layout_mode = 3
 anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
-script = ExtResource("1_0xm2m")
+script = ExtResource("1_qmd84")
 
 [node name="MainMenu" type="CanvasLayer" parent="." unique_id=885962350]
 
@@ -20,7 +20,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("6_menu")
+script = ExtResource("3_bbjv2")
 
 [node name="AssetExtractor" type="Node" parent="." unique_id=438674321]
-script = ExtResource("5_lquwl")
+script = ExtResource("2_hwrk2")

@@ -21,12 +21,12 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-AssetExtractor="*res://extract_wolf3d.gd"
-GameState="*res://GameState.gd"
-SoundManager="*res://SoundManager.gd"
-MusicManager="*res://MusicManager.gd"
-FontManager="*res://FontManager.gd"
-DeathSequence="*res://DeathSequence.gd"
+AssetExtractor="*res://globals/extract_wolf3d.gd"
+GameState="*res://globals/GameState.gd"
+SoundManager="*res://globals/SoundManager.gd"
+MusicManager="*res://globals/MusicManager.gd"
+FontManager="*res://globals/FontManager.gd"
+DeathSequence="*res://globals/DeathSequence.gd"
 
 [display]
 

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ddxqf62oqs8cm"]
 
 [ext_resource type="Script" uid="uid://38uufdqi5efx" path="res://main.gd" id="1_qmd84"]
-[ext_resource type="Script" uid="uid://jqq7ljci43vl" path="res://extract_wolf3d.gd" id="2_hwrk2"]
+[ext_resource type="Script" uid="uid://jqq7ljci43vl" path="res://globals/extract_wolf3d.gd" id="2_hwrk2"]
 [ext_resource type="Script" uid="uid://tfpw65w18nq5" path="res://MainMenu.gd" id="3_bbjv2"]
 
 [node name="Main" type="Control" unique_id=1787088670]
